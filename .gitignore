@@ -1,0 +1,8 @@
+__pycache__/
+_hzy46_original_code/
+generated/
+img/
+models/
+pretrained/
+train2014/
+zoe-generate/
