@@ -58,8 +58,9 @@ def main(FLAGS):
                                             FLAGS.dataset_path, image_preprocessing_fn, epochs=FLAGS.epoch) # Tensor("batch:0", shape=(4, 256, 256, 3), dtype=float32)
 
             """ 内容图片 -> 生成图片 """
-            style_strength_list = [0.1*x for x in range(11)]
-            style_strength = style_strength_list[np.random.randint(0,11)]
+            # style_strength_list = [0.1*x for x in range(11)]
+            # style_strength = style_strength_list[np.random.randint(0,11)]
+            style_strength = 1
 
             generated = model.net(processed_images, style_strength, training=True) # Tensor("Slice_1:0", shape=(4, 256, 256, 3), dtype=float32)
 
@@ -83,7 +84,7 @@ def main(FLAGS):
             
             _, processed_images_0 = tf.split(processed_images, 2, 0)
             _, processed_generated_0 = tf.split(processed_generated, 2, 0)
-            reconstruction_loss = 100 * FLAGS.style_weight * tf.abs(processed_images_0 - processed_generated_0)
+            reconstruction_loss = 100 * FLAGS.style_weight * tf.norm(tf.abs(processed_images_0 - processed_generated_0), 1)
 
             loss = style_strength * FLAGS.style_weight * style_loss + FLAGS.content_weight * content_loss + \
                    FLAGS.tv_weight * tv_loss + reconstruction_loss
@@ -160,10 +161,16 @@ def main(FLAGS):
                     """logging"""
                     # if step % 10 == 0:
                     if 1:
+                        print('processed_images_0:', processed_images_0)
+                        print('processed_generated_0:', processed_generated_0)
+                        print('tf.abs(processed_images_0 - processed_generated_0):', tf.abs(processed_images_0 - processed_generated_0))
+                        print('tf.norm(tf.abs(processed_images_0 - processed_generated_0), 1):', tf.norm(tf.abs(processed_images_0 - processed_generated_0), 1))
+
+                        # reconstruction_loss = 100 * FLAGS.style_weight * tf.abs(processed_images_0 - processed_generated_0) / (FLAGS.batch_size/2)
                         tf.logging.info('step: %d,  total Loss %f, secs/step: %f, content loss: %f,  \
                                         style_loss: %f, style_strength: %f, reconstruction loss: %f' \
                                         % (step, loss_t, elapsed_time, content_loss.eval(), \
-                                           style_loss.eval(), style_strength, reconstruction_loss))
+                                           style_loss.eval(), style_strength, reconstruction_loss.eval()))
                     """summary"""
                     if step % 25 == 0:
                         tf.logging.info('adding summary...')
