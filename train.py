@@ -11,7 +11,6 @@ import os
 import argparse
 from datetime import datetime
 import numpy as np
-import time
 
 TIMESTAMP="{0:%Y-%m-%d_%H-%M-%S}".format(datetime.now())
 
@@ -21,40 +20,33 @@ slim = tf.contrib.slim
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--conf', default='conf/denoised_starry.yml', help='the path to the conf file')
+    parser.add_argument('-s', '--style_weight', default=50, help='the value of style weight')
+    parser.add_argument('-d', '--dataset_path', default='./train2014', help='the path to dataset')
     return parser.parse_args()
 
 
 def main(FLAGS):
     """ 计算图像风格特征 """
-    time1=time.time()
     style_features_t = utils.get_style_features(FLAGS)
     # print(style_features_t[0].shape) # (64, 64)
     # print(style_features_t[1].shape) # (128, 128)
     # print(style_features_t[2].shape) # (256, 256)
     # print(style_features_t[3].shape) # (512, 512)
     # print(style_features_t,'\n')
-
-    time2=time.time()
-    print("********** spend time = ",time2-time1,'\tstyle_features_t')
     
     # Make sure the training path exists.
-    training_path = os.path.join(FLAGS.model_path, FLAGS.naming + '-' + TIMESTAMP)
+    training_path = os.path.join(FLAGS.model_path, FLAGS.naming + '-' + str(FLAGS.style_weight))
     if not(os.path.exists(training_path)):
         os.makedirs(training_path)
-    time3=time.time()
-    print("********** spend time = ",time3-time2,'\ttraining path')
-    
 
     with tf.Graph().as_default():
         with tf.Session() as sess:
             """Build Network"""
             """ 返回网络结构函数 """
-            time4=time.time()
             network_fn = nets_factory.get_network_fn(
                 FLAGS.loss_model,
                 num_classes=1,
                 is_training=False)
-            print("********** spend time = ",time4-time3,'\tBuild Network')
 
             """ 返回预处理/不进行预处理的函数 """
             image_preprocessing_fn, image_unprocessing_fn = preprocessing_factory.get_preprocessing(
@@ -63,27 +55,18 @@ def main(FLAGS):
             
             """ 以batch读取数据集图片 """
             processed_images = utils.image(FLAGS.batch_size, FLAGS.image_size, FLAGS.image_size,
-                                            'train2014/', image_preprocessing_fn, epochs=FLAGS.epoch)
-            time5=time.time()
-            print("********** spend time = ",time5-time4,'\tread image')
-            
-            
+                                            FLAGS.dataset_path, image_preprocessing_fn, epochs=FLAGS.epoch) # Tensor("batch:0", shape=(4, 256, 256, 3), dtype=float32)
+
             """ 内容图片 -> 生成图片 """
             style_strength_list = [0.1*x for x in range(11)]
             style_strength = style_strength_list[np.random.randint(0,11)]
-            # print("*********** before image.shape:",processed_images.shape)
-            # image_v = tf.pad(processed_images, [[0, 0], [10, 10], [10, 10], [0, 0]], mode='REFLECT')
-            # print("*********** after  image.shape:",image_v.shape)
-            generated = model.net(processed_images, style_strength, training=True)
-            time6=time.time()
-            print("********** spend time = ",time6-time5,'\tgenerate image')
+
+            generated = model.net(processed_images, style_strength, training=True) # Tensor("Slice_1:0", shape=(4, 256, 256, 3), dtype=float32)
 
             processed_generated = [image_preprocessing_fn(image, FLAGS.image_size, FLAGS.image_size)
                                    for image in tf.unstack(generated, axis=0, num=FLAGS.batch_size)
                                    ]
-            processed_generated = tf.stack(processed_generated)
-            time7=time.time()
-            print("********** spend time = ",time7-time6,'\tprocessed_generated')
+            processed_generated = tf.stack(processed_generated)  # Tensor("stack_11:0", shape=(4, 256, 256, 3), dtype=float32)
 
             """ 生成图片+内容图片 输入vgg网络 """
             _, endpoints_dict = network_fn(tf.concat([processed_generated, processed_images], 0), spatial_squeeze=False)
@@ -97,10 +80,13 @@ def main(FLAGS):
             content_loss = utils.content_loss(endpoints_dict, FLAGS.content_layers)
             style_loss, style_loss_summary = utils.style_loss(endpoints_dict, style_features_t, FLAGS.style_layers)
             tv_loss = utils.total_variation_loss(generated)  # use the unprocessed image
+            
+            _, processed_images_0 = tf.split(processed_images, 2, 0)
+            _, processed_generated_0 = tf.split(processed_generated, 2, 0)
+            reconstruction_loss = 100 * FLAGS.style_weight * tf.abs(processed_images_0 - processed_generated_0)
 
-            loss = style_strength * FLAGS.style_weight * style_loss + FLAGS.content_weight * content_loss + FLAGS.tv_weight * tv_loss
-            time8=time.time()
-            print("********** spend time = ",time8-time7,'\tcount loss')
+            loss = style_strength * FLAGS.style_weight * style_loss + FLAGS.content_weight * content_loss + \
+                   FLAGS.tv_weight * tv_loss + reconstruction_loss
 
             # Add Summary for visualization in tensorboard.
             """Add Summary"""
@@ -122,14 +108,11 @@ def main(FLAGS):
             ]))
             summary = tf.summary.merge_all()
             writer = tf.summary.FileWriter(training_path)
-            time9=time.time()
-            print("********** spend time = ",time9-time8,'\tsummary')
 
             """Prepare to Train"""
             global_step = tf.Variable(0, name="global_step", trainable=False)
 
 
-            # print("************* tf.trainable_variables:",tf.trainable_variables())
             """ 定义可训练的变量 """
             variable_to_train = []
             for variable in tf.trainable_variables():
@@ -142,7 +125,7 @@ def main(FLAGS):
             for v in tf.global_variables():
                 if not(v.name.startswith(FLAGS.loss_model)):
                     variables_to_restore.append(v)
-            saver = tf.train.Saver(variables_to_restore, write_version=tf.train.SaverDef.V1)
+            saver = tf.train.Saver(variables_to_restore, max_to_keep=100, write_version=tf.train.SaverDef.V1)
 
             """ 初始化变量 """
             sess.run([tf.global_variables_initializer(), tf.local_variables_initializer()])
@@ -158,8 +141,6 @@ def main(FLAGS):
             if last_file:
                 tf.logging.info('Restoring model from {}'.format(last_file))
                 saver.restore(sess, last_file)
-            time10=time.time()
-            print("********** spend time = ",time10-time9,'\tprepare to train')
 
             """Start Training"""
             """
@@ -177,30 +158,12 @@ def main(FLAGS):
                     elapsed_time = time.time() - start_time
                     start_time = time.time()
                     """logging"""
-                    # print(step)
-
-                    # for v in range(5):
-                    #     name = sess.graph.get_tensor_by_name('res' + str(v+1) + '/residual/Variable:0')
-                    #     print('res', str(v+1), '/residual/Variable:0 = ', sess.run(name))
-
-                    if step % 10 == 0:
-                        tf.logging.info('step: %d,  total Loss %f, secs/step: %f' % (step, loss_t, elapsed_time))
-                        tf.logging.info('content loss: %f,  original_style_loss: %f' % (content_loss.eval(), style_loss.eval()))
-                        # print(type(processed_images)) # <class 'tensorflow.python.framework.ops.Tensor'>
-                        # print(processed_images.shape) # (4, 256, 256, 3)
-                        # print(processed_images) # Tensor("batch:0", shape=(4, 256, 256, 3), dtype=float32)
-                        # print('\n')
-
-                        # print(type(generated)) # <class 'tensorflow.python.framework.ops.Tensor'>
-                        # print(generated.shape) # (4, 256, 256, 3)
-                        # print(generated) # Tensor("Slice_1:0", shape=(4, 256, 256, 3), dtype=float32)
-                        # print('\n')
-
-                        # print(type(processed_generated)) # <class 'tensorflow.python.framework.ops.Tensor'>
-                        # print(processed_generated.shape) # (4, 256, 256, 3)
-                        # print(processed_generated) # Tensor("stack_11:0", shape=(4, 256, 256, 3), dtype=float32)
-                        # print('\n')
-
+                    # if step % 10 == 0:
+                    if 1:
+                        tf.logging.info('step: %d,  total Loss %f, secs/step: %f, content loss: %f,  \
+                                        style_loss: %f, style_strength: %f, reconstruction loss: %f' \
+                                        % (step, loss_t, elapsed_time, content_loss.eval(), \
+                                           style_loss.eval(), style_strength, reconstruction_loss))
                     """summary"""
                     if step % 25 == 0:
                         tf.logging.info('adding summary...')
@@ -211,7 +174,7 @@ def main(FLAGS):
                     if step % 1000 == 0:
                         saver.save(sess, os.path.join(training_path, 'fast-style-model.ckpt'), global_step=step)
             except tf.errors.OutOfRangeError:
-                saver.save(sess, os.path.join(training_path, 'fast-style-model.ckpt-done'))
+                saver.save(sess, os.path.join(training_path, 'fast-style-model.ckpt-done'), global_step=step)
                 tf.logging.info('Done training -- epoch limit reached')
             finally:
                 coord.request_stop()
@@ -222,4 +185,6 @@ if __name__ == '__main__':
     tf.logging.set_verbosity(tf.logging.INFO)
     args = parse_args()
     FLAGS = utils.read_conf_file(args.conf)
+    FLAGS.dataset_path = args.dataset_path
+    FLAGS.style_weight = args.style_weight
     main(FLAGS)

@@ -89,16 +89,28 @@ def relu(input):
 def residual(x, filters, kernel, strides, style_strength):
     with tf.variable_scope('residual'):
         conv1 = conv2d(x, filters, filters, kernel, strides)
-        conv2 = conv2d(relu(conv1), filters, filters, kernel, strides)
+        conv2 = conv2d(relu(conv1), filters, filters, kernel, strides) # shape=(4, 69, 69, 128)
 
-        layer_strength = tf.Variable(tf.constant(1.0), trainable=True) # 添加一个可训练参数
-        # print("************* layer_strength = ",layer_strength)
+        # layer_strength = tf.Variable(tf.constant(1.0), trainable=True) # 添加一个可训练参数
+        layer_strength = tf.Variable(tf.ones([128, 128]), trainable=True) # zoe: 修改layer_strength维度从scale到[128, 128]
         strength = style_strength * layer_strength # 可训练参数和style strength绑定
         strength = 2 * tf.abs(strength) / (1 + tf.abs(strength)) # 限制范围在[0,2)
 
-        residual = x + strength * conv2
         # residual = x + style_strength * conv2
+        # residual = x + strength * conv2
 
+        batch_size = tf.shape(conv2)[0].eval()
+        residual = []
+        cnt = 0
+        for x_each, conv2_each in zip(tf.unstack(x, axis=0, num=batch_size), tf.unstack(conv2, axis=0, num=batch_size)):
+            cnt += 1
+            if cnt <= batch_size/2:
+                tmp1 = tf.tensordot(conv2_each, strength, axes=1)
+                tmp2 = x_each + tmp1
+                residual.append(tmp2)
+            else:
+                residual.append(x_each)
+        residual = tf.stack(residual)
         return residual
 
 
@@ -110,9 +122,22 @@ def net(image, style_strength, training):
 
     is_instance_norm = True
     if is_instance_norm:
+        # image: Tensor("MirrorPad:0", shape=(4, 276, 276, 3), dtype=float32)
+        # conv1: Tensor("conv1/Select:0", shape=(4, 276, 276, 32), dtype=float32)
+        # conv2: Tensor("conv2/Select:0", shape=(4, 138, 138, 64), dtype=float32)
+        # conv3: Tensor("conv3/Select:0", shape=(4, 69, 69, 128), dtype=float32)
+        # res1: Tensor("res1/residual/add_1:0", shape=(4, 69, 69, 128), dtype=float32)
+        # res2: Tensor("res2/residual/add_1:0", shape=(4, 69, 69, 128), dtype=float32)
+        # res3: Tensor("res3/residual/add_1:0", shape=(4, 69, 69, 128), dtype=float32)
+        # res4: Tensor("res4/residual/add_1:0", shape=(4, 69, 69, 128), dtype=float32)
+        # res5: Tensor("res5/residual/add_1:0", shape=(4, 69, 69, 128), dtype=float32)
+        # deconv1: Tensor("deconv1/Select:0", shape=(4, 138, 138, 64), dtype=float32)
+        # deconv2: Tensor("deconv2/Select:0", shape=(4, 276, 276, 32), dtype=float32)
+        # deconv3: Tensor("deconv3/Tanh:0", shape=(4, 276, 276, 3), dtype=float32)
+        # y: Tensor("Slice_1:0", shape=(4, 256, 256, 3), dtype=float32)
+
         with tf.variable_scope('conv1'):
             conv1 = relu(instance_norm(conv2d(image, 3, 32, 9, 1)))
-            # print("**************** conv1:",conv1)
         with tf.variable_scope('conv2'):
             conv2 = relu(instance_norm(conv2d(conv1, 32, 64, 3, 2)))
         with tf.variable_scope('conv3'):
@@ -137,7 +162,6 @@ def net(image, style_strength, training):
         with tf.variable_scope('deconv3'):
             # deconv_test = relu(instance_norm(conv2d(deconv2, 32, 32, 2, 1)))
             deconv3 = tf.nn.tanh(instance_norm(conv2d(deconv2, 32, 3, 9, 1))) # Tensor("deconv3/Tanh:0", shape=(1, 476, 712, 3), dtype=float32)
-            print("**************** deconv3:",deconv3)
 
     else:
         with tf.variable_scope('conv1'):

@@ -59,9 +59,7 @@ def main(_):
             FLAGS.model_file = os.path.abspath(FLAGS.model_file)
             saver.restore(sess, FLAGS.model_file)
 
-            print("********* 1. generated:",sess.run(generated)) # shape=(456, 692, 3) [0,255]
-            print("********* 1. generated:",sess.run(generated).shape) # shape=(456, 692, 3) [0,255]
-
+            # print("********* 1. generated:",sess.run(generated)) # shape=(456, 692, 3) [0,255]
 
             # Make sure 'generated' directory exists.
             # generated_file = 'generated/res.jpg'
