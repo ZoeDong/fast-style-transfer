@@ -20,7 +20,7 @@ slim = tf.contrib.slim
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--conf', default='conf/denoised_starry.yml', help='the path to the conf file')
-    parser.add_argument('-s', '--style_weight', default=50, help='the value of style weight')
+    parser.add_argument('-s', '--style_weight', default=50, type=int, help='the value of style weight')
     parser.add_argument('-d', '--dataset_path', default='./train2014', help='the path to dataset')
     return parser.parse_args()
 
@@ -35,7 +35,7 @@ def main(FLAGS):
     # print(style_features_t,'\n')
     
     # Make sure the training path exists.
-    training_path = os.path.join(FLAGS.model_path, FLAGS.naming + '-' + str(FLAGS.style_weight))
+    training_path = os.path.join(FLAGS.model_path, FLAGS.naming + '-' + str(FLAGS.style_weight) + '-' + TIMESTAMP)
     if not(os.path.exists(training_path)):
         os.makedirs(training_path)
 
@@ -84,10 +84,12 @@ def main(FLAGS):
             
             _, processed_images_0 = tf.split(processed_images, 2, 0)
             _, processed_generated_0 = tf.split(processed_generated, 2, 0)
-            reconstruction_loss = 100 * FLAGS.style_weight * tf.norm(tf.abs(processed_images_0 - processed_generated_0), 1)
+            # reconstruction_loss = 0.001 * FLAGS.style_weight * tf.norm(tf.abs(processed_images_0 - processed_generated_0), 1)
+            reconstruction_loss =  tf.norm(tf.abs(processed_images_0 - processed_generated_0), 1)
+            weighted_reconstruction_loss = 0.0001 * reconstruction_loss
 
             loss = style_strength * FLAGS.style_weight * style_loss + FLAGS.content_weight * content_loss + \
-                   FLAGS.tv_weight * tv_loss + reconstruction_loss
+                   FLAGS.tv_weight * tv_loss + weighted_reconstruction_loss
 
             # Add Summary for visualization in tensorboard.
             """Add Summary"""
@@ -161,16 +163,14 @@ def main(FLAGS):
                     """logging"""
                     # if step % 10 == 0:
                     if 1:
-                        print('processed_images_0:', processed_images_0)
-                        print('processed_generated_0:', processed_generated_0)
-                        print('tf.abs(processed_images_0 - processed_generated_0):', tf.abs(processed_images_0 - processed_generated_0))
-                        print('tf.norm(tf.abs(processed_images_0 - processed_generated_0), 1):', tf.norm(tf.abs(processed_images_0 - processed_generated_0), 1))
-
-                        # reconstruction_loss = 100 * FLAGS.style_weight * tf.abs(processed_images_0 - processed_generated_0) / (FLAGS.batch_size/2)
-                        tf.logging.info('step: %d,  total Loss %f, secs/step: %f, content loss: %f,  \
-                                        style_loss: %f, style_strength: %f, reconstruction loss: %f' \
-                                        % (step, loss_t, elapsed_time, content_loss.eval(), \
-                                           style_loss.eval(), style_strength, reconstruction_loss.eval()))
+                        print("\n********* res1/layer_strength:",sess.run(tf.get_default_graph().get_tensor_by_name("res1/residual/Variable:0")))
+                        print("\n********* res2/layer_strength:",sess.run(tf.get_default_graph().get_tensor_by_name("res2/residual/Variable:0")))
+                        print("\n********* res3/layer_strength:",sess.run(tf.get_default_graph().get_tensor_by_name("res3/residual/Variable:0")))
+                        print("\n********* res4/layer_strength:",sess.run(tf.get_default_graph().get_tensor_by_name("res4/residual/Variable:0")))
+                        print("\n********* res5/layer_strength:",sess.run(tf.get_default_graph().get_tensor_by_name("res5/residual/Variable:0")))
+                        
+                        tf.logging.info('step: %d,  total Loss %f, secs/step: %f, content loss: %f, style_loss: %f, weighted_style_loss: %f, reconstruction_loss: %f, weighted_reconstruction_loss: %f' \
+                                        % (step, loss_t, elapsed_time, content_loss.eval(), style_loss.eval(), FLAGS.style_weight * style_loss.eval(), reconstruction_loss.eval(), weighted_reconstruction_loss.eval()))
                     """summary"""
                     if step % 25 == 0:
                         tf.logging.info('adding summary...')

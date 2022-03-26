@@ -93,6 +93,7 @@ def residual(x, filters, kernel, strides, style_strength):
 
         # layer_strength = tf.Variable(tf.constant(1.0), trainable=True) # 添加一个可训练参数
         layer_strength = tf.Variable(tf.ones([128, 128]), trainable=True) # zoe: 修改layer_strength维度从scale到[128, 128]
+        print("\n\n******************* layer_strength:",layer_strength)
         strength = style_strength * layer_strength # 可训练参数和style strength绑定
         strength = 2 * tf.abs(strength) / (1 + tf.abs(strength)) # 限制范围在[0,2)
 
