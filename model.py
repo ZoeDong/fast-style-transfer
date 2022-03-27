@@ -91,9 +91,8 @@ def residual(x, filters, kernel, strides, style_strength):
         conv1 = conv2d(x, filters, filters, kernel, strides)
         conv2 = conv2d(relu(conv1), filters, filters, kernel, strides) # shape=(4, 69, 69, 128)
 
-        # layer_strength = tf.Variable(tf.constant(1.0), trainable=True) # 添加一个可训练参数
-        layer_strength = tf.Variable(tf.ones([128, 128]), trainable=True) # zoe: 修改layer_strength维度从scale到[128, 128]
-        print("\n\n******************* layer_strength:",layer_strength)
+        layer_strength = tf.Variable(tf.constant(1.0), trainable=True) # 添加一个可训练参数
+        # layer_strength = tf.Variable(tf.ones([128, 128]), trainable=True) # zoe S5 v1: 修改layer_strength维度从scale到[128, 128]
         strength = style_strength * layer_strength # 可训练参数和style strength绑定
         strength = 2 * tf.abs(strength) / (1 + tf.abs(strength)) # 限制范围在[0,2)
 
@@ -105,10 +104,9 @@ def residual(x, filters, kernel, strides, style_strength):
         cnt = 0
         for x_each, conv2_each in zip(tf.unstack(x, axis=0, num=batch_size), tf.unstack(conv2, axis=0, num=batch_size)):
             cnt += 1
-            if cnt <= batch_size/2:
-                tmp1 = tf.tensordot(conv2_each, strength, axes=1)
-                tmp2 = x_each + tmp1
-                residual.append(tmp2)
+            if batch_size == 1 or cnt <= batch_size/2: # 否则eval的时候走else
+                # residual.append(x_each + tf.tensordot(conv2_each, strength, axes=1)) # zoe S5 v1: layer_strength shape = [128,128]
+                residual.append(x_each + strength * conv2_each) # zoe S5 v2: layer_strength shape = [1,] 改回标量
             else:
                 residual.append(x_each)
         residual = tf.stack(residual)

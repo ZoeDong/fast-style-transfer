@@ -163,14 +163,8 @@ def main(FLAGS):
                     """logging"""
                     # if step % 10 == 0:
                     if 1:
-                        print("\n********* res1/layer_strength:",sess.run(tf.get_default_graph().get_tensor_by_name("res1/residual/Variable:0")))
-                        print("\n********* res2/layer_strength:",sess.run(tf.get_default_graph().get_tensor_by_name("res2/residual/Variable:0")))
-                        print("\n********* res3/layer_strength:",sess.run(tf.get_default_graph().get_tensor_by_name("res3/residual/Variable:0")))
-                        print("\n********* res4/layer_strength:",sess.run(tf.get_default_graph().get_tensor_by_name("res4/residual/Variable:0")))
-                        print("\n********* res5/layer_strength:",sess.run(tf.get_default_graph().get_tensor_by_name("res5/residual/Variable:0")))
-                        
-                        tf.logging.info('step: %d,  total Loss %f, secs/step: %f, content loss: %f, style_loss: %f, weighted_style_loss: %f, reconstruction_loss: %f, weighted_reconstruction_loss: %f' \
-                                        % (step, loss_t, elapsed_time, content_loss.eval(), style_loss.eval(), FLAGS.style_weight * style_loss.eval(), reconstruction_loss.eval(), weighted_reconstruction_loss.eval()))
+                        tf.logging.info('step: %d,  total Loss %f, secs/step: %f, content loss: %f, style_loss: %f, weighted_style_loss: %f, reconstruction_loss: %f, weighted_reconstruction_loss: %f, res1/layer_strength: %f, res2/layer_strength: %f, res3/layer_strength: %f, res4/layer_strength: %f, res5/layer_strength: %f, ' \
+                                        % (step, loss_t, elapsed_time, content_loss.eval(), style_loss.eval(), FLAGS.style_weight * style_loss.eval(), reconstruction_loss.eval(), weighted_reconstruction_loss.eval(), sess.run(tf.get_default_graph().get_tensor_by_name("res1/residual/Variable:0")), sess.run(tf.get_default_graph().get_tensor_by_name("res2/residual/Variable:0")), sess.run(tf.get_default_graph().get_tensor_by_name("res3/residual/Variable:0")), sess.run(tf.get_default_graph().get_tensor_by_name("res4/residual/Variable:0")), sess.run(tf.get_default_graph().get_tensor_by_name("res5/residual/Variable:0"))))
                     """summary"""
                     if step % 25 == 0:
                         tf.logging.info('adding summary...')
