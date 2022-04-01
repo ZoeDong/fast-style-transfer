@@ -86,7 +86,8 @@ def main(FLAGS):
             _, processed_generated_0 = tf.split(processed_generated, 2, 0)
             # reconstruction_loss = 0.001 * FLAGS.style_weight * tf.norm(tf.abs(processed_images_0 - processed_generated_0), 1)
             reconstruction_loss =  tf.norm(tf.abs(processed_images_0 - processed_generated_0), 1)
-            weighted_reconstruction_loss = 0.0001 * reconstruction_loss
+            # weighted_reconstruction_loss = 0.0001 * reconstruction_loss
+            weighted_reconstruction_loss = 0.01 * FLAGS.style_weight * reconstruction_loss
 
             loss = style_strength * FLAGS.style_weight * style_loss + FLAGS.content_weight * content_loss + \
                    FLAGS.tv_weight * tv_loss + weighted_reconstruction_loss
@@ -157,14 +158,14 @@ def main(FLAGS):
             start_time = time.time()
             try:
                 while not coord.should_stop():
-                    _, loss_t, step = sess.run([train_op, loss, global_step])
+                    _, loss_t, step, content_loss_tmp, style_loss_tmp, reconstruction_loss_tmp, weighted_reconstruction_loss_tmp = sess.run([train_op, loss, global_step, content_loss, style_loss, reconstruction_loss, weighted_reconstruction_loss])
                     elapsed_time = time.time() - start_time
                     start_time = time.time()
                     """logging"""
                     # if step % 10 == 0:
                     if 1:
                         tf.logging.info('step: %d,  total Loss %f, secs/step: %f, content loss: %f, style_loss: %f, weighted_style_loss: %f, reconstruction_loss: %f, weighted_reconstruction_loss: %f, res1/layer_strength: %f, res2/layer_strength: %f, res3/layer_strength: %f, res4/layer_strength: %f, res5/layer_strength: %f, ' \
-                                        % (step, loss_t, elapsed_time, content_loss.eval(), style_loss.eval(), FLAGS.style_weight * style_loss.eval(), reconstruction_loss.eval(), weighted_reconstruction_loss.eval(), sess.run(tf.get_default_graph().get_tensor_by_name("res1/residual/Variable:0")), sess.run(tf.get_default_graph().get_tensor_by_name("res2/residual/Variable:0")), sess.run(tf.get_default_graph().get_tensor_by_name("res3/residual/Variable:0")), sess.run(tf.get_default_graph().get_tensor_by_name("res4/residual/Variable:0")), sess.run(tf.get_default_graph().get_tensor_by_name("res5/residual/Variable:0"))))
+                                % (step, loss_t, elapsed_time, content_loss_tmp, style_loss_tmp, FLAGS.style_weight * style_loss_tmp, reconstruction_loss_tmp, weighted_reconstruction_loss_tmp, sess.run(tf.get_default_graph().get_tensor_by_name("res1/residual/Variable:0")), sess.run(tf.get_default_graph().get_tensor_by_name("res2/residual/Variable:0")), sess.run(tf.get_default_graph().get_tensor_by_name("res3/residual/Variable:0")), sess.run(tf.get_default_graph().get_tensor_by_name("res4/residual/Variable:0")), sess.run(tf.get_default_graph().get_tensor_by_name("res5/residual/Variable:0"))))                          
                     """summary"""
                     if step % 25 == 0:
                         tf.logging.info('adding summary...')
