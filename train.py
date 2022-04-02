@@ -82,12 +82,11 @@ def main(FLAGS):
             style_loss, style_loss_summary = utils.style_loss(endpoints_dict, style_features_t, FLAGS.style_layers)
             tv_loss = utils.total_variation_loss(generated)  # use the unprocessed image
             
-            _, processed_images_0 = tf.split(processed_images, 2, 0)
-            _, processed_generated_0 = tf.split(processed_generated, 2, 0)
-            # reconstruction_loss = 0.001 * FLAGS.style_weight * tf.norm(tf.abs(processed_images_0 - processed_generated_0), 1)
-            reconstruction_loss =  tf.norm(tf.abs(processed_images_0 - processed_generated_0), 1)
-            # weighted_reconstruction_loss = 0.0001 * reconstruction_loss
-            weighted_reconstruction_loss = 0.01 * FLAGS.style_weight * reconstruction_loss
+            reconstruction_weight = 50
+            _, processed_images_0 = tf.split(processed_images, 2, 0) # (2, 256, 256, 3) = 393216
+            _, processed_generated_0 = tf.split(processed_generated, 2, 0) # (2, 256, 256, 3) = 393216
+            reconstruction_loss =  tf.norm(tf.abs(processed_images_0 - processed_generated_0), 1) / tf.to_float(tf.size(processed_images_0))
+            weighted_reconstruction_loss = reconstruction_weight * reconstruction_loss
 
             loss = style_strength * FLAGS.style_weight * style_loss + FLAGS.content_weight * content_loss + \
                    FLAGS.tv_weight * tv_loss + weighted_reconstruction_loss
@@ -117,7 +116,7 @@ def main(FLAGS):
             global_step = tf.Variable(0, name="global_step", trainable=False)
 
 
-            """ 定义可训练的变量 """
+            """ 定义可训练的变量 只保留 transform network 部分"""
             variable_to_train = []
             for variable in tf.trainable_variables():
                 if not(variable.name.startswith(FLAGS.loss_model)):
