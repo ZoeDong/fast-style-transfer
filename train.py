@@ -29,7 +29,7 @@ tf.app.flags.DEFINE_integer('reconstruction_weight', 100, 'weight for total reco
 
 ## The size, the iter number to run
 tf.app.flags.DEFINE_integer('image_size', 256, '')
-tf.app.flags.DEFINE_integer('batch_size', 4, '')
+tf.app.flags.DEFINE_integer('batch_size', 8, '')
 tf.app.flags.DEFINE_integer('epoch', 1, '')
 
 tf.app.flags.DEFINE_string('model_path', 'models', 'root path to save checkpoint and events file. The final path would be <model_path>/<naming>')
@@ -93,23 +93,24 @@ def main(FLAGS):
             """ 生成图片+内容图片 输入vgg网络 """
             _, endpoints_dict = network_fn(tf.concat([processed_generated, processed_images], 0), spatial_squeeze=False)
 
-            # Log the structure of loss network
-            tf.logging.info('Loss network layers(You can define them in "content_layers" and "style_layers"):')
-            for key in endpoints_dict:
-                tf.logging.info(key)
+            # # Log the structure of loss network
+            # tf.logging.info('Loss network layers(You can define them in "content_layers" and "style_layers"):')
+            # for key in endpoints_dict:
+            #     tf.logging.info(key)
 
             """Build Losses"""
             content_loss = utils.content_loss(endpoints_dict, FLAGS.content_layers)
             style_loss, style_loss_summary = utils.style_loss(endpoints_dict, style_features_t, FLAGS.style_layers)
             tv_loss = utils.total_variation_loss(generated)  # use the unprocessed image
             
-            _, processed_images_0 = tf.split(processed_images, 2, 0) # (2, 256, 256, 3) = 393216
-            _, processed_generated_0 = tf.split(processed_generated, 2, 0) # (2, 256, 256, 3) = 393216
+            processed_images_0, _, _, _ = tf.split(processed_images, 4, 0) # (2, 256, 256, 3) = 393216
+            processed_generated_0, _, _, _ = tf.split(processed_generated, 4, 0) # (2, 256, 256, 3) = 393216
             reconstruction_loss =  tf.norm(tf.abs(processed_images_0 - processed_generated_0), 1) / tf.to_float(tf.size(processed_images_0))
-            weighted_reconstruction_loss = FLAGS.reconstruction_weight * reconstruction_loss
 
-            loss = style_strength * FLAGS.style_weight * style_loss + FLAGS.content_weight * content_loss + \
-                   FLAGS.tv_weight * tv_loss + weighted_reconstruction_loss
+            loss = style_strength * FLAGS.style_weight * style_loss + \
+                    FLAGS.content_weight * content_loss + \
+                    FLAGS.tv_weight * tv_loss + \
+                    FLAGS.reconstruction_weight * reconstruction_loss
 
             # Add Summary for visualization in tensorboard.
             """Add Summary"""
@@ -121,7 +122,7 @@ def main(FLAGS):
             tf.summary.scalar('weighted_losses/weighted_content_loss', content_loss * FLAGS.content_weight)
             tf.summary.scalar('weighted_losses/weighted_style_loss', style_loss * FLAGS.style_weight)
             tf.summary.scalar('weighted_losses/weighted_regularizer_loss', tv_loss * FLAGS.tv_weight)
-            tf.summary.scalar('weighted_losses/weighted_reconstruction_loss', weighted_reconstruction_loss)
+            tf.summary.scalar('weighted_losses/weighted_reconstruction_loss', reconstruction_loss * FLAGS.reconstruction_weight)
             tf.summary.scalar('total_loss', loss)
 
             for layer in FLAGS.style_layers:
@@ -179,14 +180,14 @@ def main(FLAGS):
             start_time = time.time()
             try:
                 while not coord.should_stop():
-                    _, loss_t, step, content_loss_tmp, style_loss_tmp, reconstruction_loss_tmp, weighted_reconstruction_loss_tmp = sess.run([train_op, loss, global_step, content_loss, style_loss, reconstruction_loss, weighted_reconstruction_loss])
+                    _, loss_t, step, content_loss_tmp, style_loss_tmp, reconstruction_loss_tmp = sess.run([train_op, loss, global_step, content_loss, style_loss, reconstruction_loss])
                     elapsed_time = time.time() - start_time
                     start_time = time.time()
                     """logging"""
                     # if step % 10 == 0:
                     if 1:
                         tf.logging.info('step: %d,  total Loss %f, secs/step: %f, content loss: %f, style_loss: %f, weighted_style_loss: %f, reconstruction_loss: %f, weighted_reconstruction_loss: %f, res1/layer_strength: %f, res2/layer_strength: %f, res3/layer_strength: %f, res4/layer_strength: %f, res5/layer_strength: %f, ' \
-                                % (step, loss_t, elapsed_time, content_loss_tmp, style_loss_tmp, FLAGS.style_weight * style_loss_tmp, reconstruction_loss_tmp, weighted_reconstruction_loss_tmp, sess.run(tf.get_default_graph().get_tensor_by_name("res1/residual/Variable:0")), sess.run(tf.get_default_graph().get_tensor_by_name("res2/residual/Variable:0")), sess.run(tf.get_default_graph().get_tensor_by_name("res3/residual/Variable:0")), sess.run(tf.get_default_graph().get_tensor_by_name("res4/residual/Variable:0")), sess.run(tf.get_default_graph().get_tensor_by_name("res5/residual/Variable:0"))))                          
+                                % (step, loss_t, elapsed_time, content_loss_tmp, style_loss_tmp, FLAGS.style_weight * style_loss_tmp, reconstruction_loss_tmp, FLAGS.reconstruction_weight * reconstruction_loss_tmp, sess.run(tf.get_default_graph().get_tensor_by_name("res1/residual/Variable:0")), sess.run(tf.get_default_graph().get_tensor_by_name("res2/residual/Variable:0")), sess.run(tf.get_default_graph().get_tensor_by_name("res3/residual/Variable:0")), sess.run(tf.get_default_graph().get_tensor_by_name("res4/residual/Variable:0")), sess.run(tf.get_default_graph().get_tensor_by_name("res5/residual/Variable:0"))))                          
                     """summary"""
                     if step % 25 == 0:
                         tf.logging.info('adding summary...')

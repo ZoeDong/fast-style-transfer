@@ -86,30 +86,30 @@ def relu(input):
     return nan_to_zero
 
 
-def residual(x, filters, kernel, strides, style_strength):
+def residual(x, filters, kernel, strides, style_strength, training):
     with tf.variable_scope('residual'):
         conv1 = conv2d(x, filters, filters, kernel, strides)
         conv2 = conv2d(relu(conv1), filters, filters, kernel, strides) # shape=(4, 69, 69, 128)
 
         layer_strength = tf.Variable(tf.constant(1.0), trainable=True) # 添加一个可训练参数
-        # layer_strength = tf.Variable(tf.ones([128, 128]), trainable=True) # zoe S5 v1: 修改layer_strength维度从scale到[128, 128]
-        strength = style_strength * layer_strength # 可训练参数和style strength绑定
-        strength = 2 * tf.abs(strength) / (1 + tf.abs(strength)) # 限制范围在[0,2)
 
-        # residual = x + style_strength * conv2
-        # residual = x + strength * conv2
-
-        batch_size = tf.shape(conv2)[0].eval()
-        residual = []
-        cnt = 0
-        for x_each, conv2_each in zip(tf.unstack(x, axis=0, num=batch_size), tf.unstack(conv2, axis=0, num=batch_size)):
-            cnt += 1
-            if batch_size == 1 or cnt <= batch_size/2: # 否则eval的时候走else
-                # residual.append(x_each + tf.tensordot(conv2_each, strength, axes=1)) # zoe S5 v1: layer_strength shape = [128,128]
+        if training:
+            style_strength = [0, 0, 1/3, 1/3, 2/3, 2/3, 1, 1]
+            batch_size = tf.shape(conv2)[0].eval()
+            residual = []
+            cnt = 0
+            for x_each, conv2_each in zip(tf.unstack(x, axis=0, num=batch_size), tf.unstack(conv2, axis=0, num=batch_size)):
+                print(">>>>>>>>>>>>>>>>>>>>> style_strength[cnt] = ", style_strength[cnt])
+                strength = style_strength[cnt] * layer_strength # 可训练参数和style strength绑定
+                strength = 2 * tf.abs(strength) / (1 + tf.abs(strength)) # 限制范围在[0,2)
                 residual.append(x_each + strength * conv2_each) # zoe S5 v2: layer_strength shape = [1,] 改回标量
-            else:
-                residual.append(x_each)
-        residual = tf.stack(residual)
+                cnt += 1
+            residual = tf.stack(residual)
+        else:
+            style_strength = 0.5
+            strength = style_strength * layer_strength # 可训练参数和style strength绑定
+            strength = 2 * tf.abs(strength) / (1 + tf.abs(strength)) # 限制范围在[0,2)
+            residual = x + strength * conv2
         return residual
 
 
@@ -142,15 +142,15 @@ def net(image, style_strength, training):
         with tf.variable_scope('conv3'):
             conv3 = relu(instance_norm(conv2d(conv2, 64, 128, 3, 2)))
         with tf.variable_scope('res1'):
-            res1 = residual(conv3, 128, 3, 1, style_strength)
+            res1 = residual(conv3, 128, 3, 1, style_strength, training)
         with tf.variable_scope('res2'):
-            res2 = residual(res1, 128, 3, 1, style_strength)
+            res2 = residual(res1, 128, 3, 1, style_strength, training)
         with tf.variable_scope('res3'):
-            res3 = residual(res2, 128, 3, 1, style_strength)
+            res3 = residual(res2, 128, 3, 1, style_strength, training)
         with tf.variable_scope('res4'):
-            res4 = residual(res3, 128, 3, 1, style_strength)
+            res4 = residual(res3, 128, 3, 1, style_strength, training)
         with tf.variable_scope('res5'):
-            res5 = residual(res4, 128, 3, 1, style_strength)
+            res5 = residual(res4, 128, 3, 1, style_strength, training)
         # print(res5.get_shape())
         with tf.variable_scope('deconv1'):
             # deconv1 = relu(instance_norm(conv2d_transpose(res5, 128, 64, 3, 2)))
