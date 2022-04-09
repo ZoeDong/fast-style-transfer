@@ -21,6 +21,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--conf', default='conf/denoised_starry.yml', help='the path to the conf file')
     parser.add_argument('-s', '--style_weight', default=50, type=int, help='the value of style weight')
+    parser.add_argument('-r', '--reconstruction_weight', default=50, type=int, help='the value of reconstruction weight')
     parser.add_argument('-d', '--dataset_path', default='./train2014', help='the path to dataset')
     return parser.parse_args()
 
@@ -82,11 +83,10 @@ def main(FLAGS):
             style_loss, style_loss_summary = utils.style_loss(endpoints_dict, style_features_t, FLAGS.style_layers)
             tv_loss = utils.total_variation_loss(generated)  # use the unprocessed image
             
-            reconstruction_weight = 50
             _, processed_images_0 = tf.split(processed_images, 2, 0) # (2, 256, 256, 3) = 393216
             _, processed_generated_0 = tf.split(processed_generated, 2, 0) # (2, 256, 256, 3) = 393216
             reconstruction_loss =  tf.norm(tf.abs(processed_images_0 - processed_generated_0), 1) / tf.to_float(tf.size(processed_images_0))
-            weighted_reconstruction_loss = reconstruction_weight * reconstruction_loss
+            weighted_reconstruction_loss = FLAGS.reconstruction_weight * reconstruction_loss
 
             loss = style_strength * FLAGS.style_weight * style_loss + FLAGS.content_weight * content_loss + \
                    FLAGS.tv_weight * tv_loss + weighted_reconstruction_loss
@@ -96,10 +96,12 @@ def main(FLAGS):
             tf.summary.scalar('losses/content_loss', content_loss)
             tf.summary.scalar('losses/style_loss', style_loss)
             tf.summary.scalar('losses/regularizer_loss', tv_loss)
+            tf.summary.scalar('losses/reconstruction_loss', reconstruction_loss)
 
             tf.summary.scalar('weighted_losses/weighted_content_loss', content_loss * FLAGS.content_weight)
             tf.summary.scalar('weighted_losses/weighted_style_loss', style_loss * FLAGS.style_weight)
             tf.summary.scalar('weighted_losses/weighted_regularizer_loss', tv_loss * FLAGS.tv_weight)
+            tf.summary.scalar('weighted_losses/weighted_reconstruction_loss', weighted_reconstruction_loss)
             tf.summary.scalar('total_loss', loss)
 
             for layer in FLAGS.style_layers:
@@ -188,4 +190,5 @@ if __name__ == '__main__':
     FLAGS = utils.read_conf_file(args.conf)
     FLAGS.dataset_path = args.dataset_path
     FLAGS.style_weight = args.style_weight
+    FLAGS.reconstruction_weight = args.reconstruction_weight
     main(FLAGS)
