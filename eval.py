@@ -8,6 +8,7 @@ import time
 import os
 import re
 from datetime import datetime
+import math
 
 TIMESTAMP="{0:%Y-%m-%d_%H-%M-%S}".format(datetime.now())
 
@@ -46,7 +47,9 @@ def main(_):
             # Add batch dimension
             image = tf.expand_dims(image, 0)
 
-            generated = model.net(image, FLAGS.style_strength, training=False) # (1, 476, 712, 3)（H:474 W:712）   [有padding：shape=(1, 456, 692, 3) [0,255] float]
+            pow_xishu = 1.3
+            strength_new = math.pow(FLAGS.style_strength, pow_xishu)
+            generated = model.net(image, strength_new, training=False) # (1, 476, 712, 3)（H:474 W:712）   [有padding：shape=(1, 456, 692, 3) [0,255] float]
             generated = tf.cast(generated, tf.uint8) # shape=(1, 456, 692, 3) [0,255] int
 
             # Remove batch dimension
@@ -63,7 +66,7 @@ def main(_):
 
             # Make sure 'generated' directory exists.
             # generated_file = 'generated/res.jpg'
-            generated_file = '[' + str(FLAGS.style_strength) + ']' + FLAGS.generated_image_name #'generated/res.jpg'
+            generated_file = str(pow_xishu) + '[' + str(FLAGS.style_strength) + '-' + str(strength_new) + ']' + FLAGS.generated_image_name #'generated/res.jpg'
             if os.path.exists('generated') is False:
                 os.makedirs('generated')
 
