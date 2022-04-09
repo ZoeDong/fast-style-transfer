@@ -16,15 +16,35 @@ TIMESTAMP="{0:%Y-%m-%d_%H-%M-%S}".format(datetime.now())
 
 slim = tf.contrib.slim
 
+## Basic configuration
+tf.app.flags.DEFINE_string('style_image', 'img/denoised_starry.jpg', 'targeted style image.')
+tf.app.flags.DEFINE_string('naming', 'denoised_starry', 'the name of this model.')
+tf.app.flags.DEFINE_string('dataset_path', './train2014', 'the path to dataset')
 
-def parse_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-c', '--conf', default='conf/denoised_starry.yml', help='the path to the conf file')
-    parser.add_argument('-s', '--style_weight', default=50, type=int, help='the value of style weight')
-    parser.add_argument('-r', '--reconstruction_weight', default=50, type=int, help='the value of reconstruction weight')
-    parser.add_argument('-d', '--dataset_path', default='./train2014', help='the path to dataset')
-    return parser.parse_args()
+## Weight of the loss
+tf.app.flags.DEFINE_integer('content_weight', 1, 'weight for content features loss')
+tf.app.flags.DEFINE_integer('style_weight', 100, 'weight for style features loss')
+tf.app.flags.DEFINE_integer('tv_weight', 0, 'weight for total variation loss')
+tf.app.flags.DEFINE_integer('reconstruction_weight', 100, 'weight for total reconstruction loss')
 
+## The size, the iter number to run
+tf.app.flags.DEFINE_integer('image_size', 256, '')
+tf.app.flags.DEFINE_integer('batch_size', 4, '')
+tf.app.flags.DEFINE_integer('epoch', 1, '')
+
+tf.app.flags.DEFINE_string('model_path', 'models', 'root path to save checkpoint and events file. The final path would be <model_path>/<naming>')
+
+## Loss Network
+content_layers_define = ['vgg_16/conv3/conv3_3']
+style_layers_define = ['vgg_16/conv1/conv1_2', 'vgg_16/conv2/conv2_2', 'vgg_16/conv3/conv3_3', 'vgg_16/conv4/conv4_3']
+tf.app.flags.DEFINE_list('content_layers', content_layers_define, 'use these layers for content loss')
+tf.app.flags.DEFINE_list('style_layers', style_layers_define, 'use these layers for style loss')
+tf.app.flags.DEFINE_string('loss_model', 'vgg_16', 'loss network.')
+tf.app.flags.DEFINE_string('checkpoint_exclude_scopes', 'vgg_16/fc', 'we only use the convolution layers, so ignore fc layers.')
+tf.app.flags.DEFINE_string('loss_model_file', 'pretrained/vgg_16.ckpt', 'the path to the checkpoint.')
+
+FLAGS = tf.app.flags.FLAGS
+# FLAGS.naming = FLAGS.style_image.split('/')[-1].split('.')[0]
 
 def main(FLAGS):
     """ 计算图像风格特征 """
@@ -186,9 +206,4 @@ def main(FLAGS):
 
 if __name__ == '__main__':
     tf.logging.set_verbosity(tf.logging.INFO)
-    args = parse_args()
-    FLAGS = utils.read_conf_file(args.conf)
-    FLAGS.dataset_path = args.dataset_path
-    FLAGS.style_weight = args.style_weight
-    FLAGS.reconstruction_weight = args.reconstruction_weight
     main(FLAGS)
