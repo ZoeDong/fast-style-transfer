@@ -35,10 +35,8 @@ tf.app.flags.DEFINE_integer('epoch', 1, '')
 tf.app.flags.DEFINE_string('model_path', 'models', 'root path to save checkpoint and events file. The final path would be <model_path>/<naming>')
 
 ## Loss Network
-content_layers_define = ['vgg_16/conv3/conv3_3']
-style_layers_define = ['vgg_16/conv1/conv1_2', 'vgg_16/conv2/conv2_2', 'vgg_16/conv3/conv3_3', 'vgg_16/conv4/conv4_3']
-tf.app.flags.DEFINE_list('content_layers', content_layers_define, 'use these layers for content loss')
-tf.app.flags.DEFINE_list('style_layers', style_layers_define, 'use these layers for style loss')
+tf.app.flags.DEFINE_list('content_layers', ['vgg_16/conv3/conv3_3'], 'use these layers for content loss')
+tf.app.flags.DEFINE_list('style_layers', ['vgg_16/conv1/conv1_2', 'vgg_16/conv2/conv2_2', 'vgg_16/conv3/conv3_3', 'vgg_16/conv4/conv4_3'], 'use these layers for style loss')
 tf.app.flags.DEFINE_string('loss_model', 'vgg_16', 'loss network.')
 tf.app.flags.DEFINE_string('checkpoint_exclude_scopes', 'vgg_16/fc', 'we only use the convolution layers, so ignore fc layers.')
 tf.app.flags.DEFINE_string('loss_model_file', 'pretrained/vgg_16.ckpt', 'the path to the checkpoint.')

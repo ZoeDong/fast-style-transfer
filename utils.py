@@ -135,6 +135,11 @@ def style_loss(endpoints_dict, style_features_t, style_layers):
         layer_style_loss_3 = tf.nn.l2_loss(gram(generated_images_3) - style_gram) * 2 / tf.to_float(size)
 
         layer_style_loss = (layer_style_loss_0 + layer_style_loss_1 + layer_style_loss_2 + layer_style_loss_3)/4
+
+        # generated_images, content_images = tf.split(endpoints_dict[layer], 2, 0)
+        # size = tf.size(generated_images)
+        # layer_style_loss = tf.nn.l2_loss(gram(generated_images) - gram(content_images)) * 2 / tf.to_float(size)
+        
         style_loss_summary[layer] = layer_style_loss
         style_loss += layer_style_loss
     return style_loss, style_loss_summary

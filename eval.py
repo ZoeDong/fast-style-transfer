@@ -47,8 +47,7 @@ def main(_):
             # Add batch dimension
             image = tf.expand_dims(image, 0)
 
-            pow_xishu = 1.3
-            strength_new = math.pow(FLAGS.style_strength, pow_xishu)
+            strength_new = math.exp(FLAGS.style_strength) - 1
             generated = model.net(image, strength_new, training=False) # (1, 476, 712, 3)（H:474 W:712）   [有padding：shape=(1, 456, 692, 3) [0,255] float]
             generated = tf.cast(generated, tf.uint8) # shape=(1, 456, 692, 3) [0,255] int
 

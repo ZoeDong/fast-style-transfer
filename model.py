@@ -95,6 +95,7 @@ def residual(x, filters, kernel, strides, style_strength, training):
 
         if training:
             style_strength = [0, 0, 1/3, 1/3, 2/3, 2/3, 1, 1]
+            # style_strength = [0, 0, 0, 0, 0, 0, 0, 0]
             batch_size = tf.shape(conv2)[0].eval()
             residual = []
             cnt = 0
@@ -106,7 +107,6 @@ def residual(x, filters, kernel, strides, style_strength, training):
                 cnt += 1
             residual = tf.stack(residual)
         else:
-            style_strength = 0.5
             strength = style_strength * layer_strength # 可训练参数和style strength绑定
             strength = 2 * tf.abs(strength) / (1 + tf.abs(strength)) # 限制范围在[0,2)
             residual = x + strength * conv2
