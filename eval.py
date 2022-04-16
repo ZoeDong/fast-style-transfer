@@ -65,7 +65,7 @@ def main(_):
 
             # Make sure 'generated' directory exists.
             # generated_file = 'generated/res.jpg'
-            generated_file = '[' + str(FLAGS.style_strength) + '-' + str(strength_new) + ']' + FLAGS.generated_image_name #'generated/res.jpg'
+            generated_file = str(pow_xishu) + '[' + str(FLAGS.style_strength) + '-' + str(strength_new) + ']' + FLAGS.generated_image_name #'generated/res.jpg'
             if os.path.exists('generated') is False:
                 os.makedirs('generated')
 
