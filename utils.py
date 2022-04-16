@@ -122,13 +122,14 @@ def get_style_features(FLAGS):
             return sess.run(features)
 
 def style_loss(endpoints_dict, style_features_t, style_layers):
+    # gram_size = 64 * 64 / 128 * 128 / 256 * 256 / 512 * 512
     style_loss = 0
     style_loss_summary = {}
     for style_gram, layer in zip(style_features_t, style_layers):
         generated_images_0, generated_images_1, generated_images_2, generated_images_3, content_images_0, content_images_1, content_images_2, _, \
             = tf.split(endpoints_dict[layer], 8, 0)
-        size = tf.size(generated_images_0)
-        
+        # size = tf.size(generated_images_0)
+        size = tf.size(style_gram) 
         layer_style_loss_0 = tf.nn.l2_loss(gram(generated_images_0) - gram(content_images_0)) * 2 / tf.to_float(size)
         layer_style_loss_1 = tf.nn.l2_loss(gram(generated_images_1) - (1/3 * style_gram + 2/3 * gram(content_images_0))) * 2 / tf.to_float(size)
         layer_style_loss_2 = tf.nn.l2_loss(gram(generated_images_2) - (2/3 * style_gram + 1/3 * gram(content_images_0))) * 2 / tf.to_float(size)
