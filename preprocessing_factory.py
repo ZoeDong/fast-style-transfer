@@ -340,6 +340,7 @@ def preprocess_for_eval(image, output_height, output_width, resize_side):
     """
     image = _aspect_preserving_resize(image, output_height, output_width) # 短边裁成256
     image = _central_crop([image], output_height, output_width)[0] # 中心裁剪成256*256
+    # image = tf.image.resize_images(image,[256,256])
     # image = tf.image.resize_image_with_crop_or_pad(image, output_height, output_width)
     image.set_shape([output_height, output_width, 3])
     image = tf.to_float(image)

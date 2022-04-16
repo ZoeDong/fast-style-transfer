@@ -125,11 +125,11 @@ def main(FLAGS):
 
             for layer in FLAGS.style_layers:
                 tf.summary.scalar('style_losses/' + layer, style_loss_summary[layer])
-            tf.summary.image('generated', generated)
-            # tf.image_summary('processed_generated', processed_generated)  # May be better?
-            tf.summary.image('origin', tf.stack([
-                image_unprocessing_fn(image) for image in tf.unstack(processed_images, axis=0, num=FLAGS.batch_size)
-            ]))
+            # tf.summary.image('generated', generated)
+            # # tf.image_summary('processed_generated', processed_generated)  # May be better?
+            # tf.summary.image('origin', tf.stack([
+            #     image_unprocessing_fn(image) for image in tf.unstack(processed_images, axis=0, num=FLAGS.batch_size)
+            # ]))
             summary = tf.summary.merge_all()
             writer = tf.summary.FileWriter(training_path)
 
@@ -182,8 +182,8 @@ def main(FLAGS):
                     elapsed_time = time.time() - start_time
                     start_time = time.time()
                     """logging"""
-                    # if step % 10 == 0:
-                    if 1:
+                    if step % 10 == 0:
+                    # if 1:
                         tf.logging.info('step: %d,  total Loss %f, secs/step: %f, content loss: %f, style_loss: %f, weighted_style_loss: %f, reconstruction_loss: %f, weighted_reconstruction_loss: %f, res1/layer_strength: %f, res2/layer_strength: %f, res3/layer_strength: %f, res4/layer_strength: %f, res5/layer_strength: %f, ' \
                                 % (step, loss_t, elapsed_time, content_loss_tmp, style_loss_tmp, FLAGS.style_weight * style_loss_tmp, reconstruction_loss_tmp, FLAGS.reconstruction_weight * reconstruction_loss_tmp, sess.run(tf.get_default_graph().get_tensor_by_name("res1/residual/Variable:0")), sess.run(tf.get_default_graph().get_tensor_by_name("res2/residual/Variable:0")), sess.run(tf.get_default_graph().get_tensor_by_name("res3/residual/Variable:0")), sess.run(tf.get_default_graph().get_tensor_by_name("res4/residual/Variable:0")), sess.run(tf.get_default_graph().get_tensor_by_name("res5/residual/Variable:0"))))                          
                     """summary"""
