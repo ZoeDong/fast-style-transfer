@@ -92,7 +92,7 @@ def get_style_features(FLAGS):
         net: Tensor("vgg_16/fc8/BiasAdd:0", shape=(1, 2, 2, 1), dtype=float32), 
         endpoints_dict: OrderedDict([('vgg_16/conv1/conv1_1', <tf.Tensor 'vgg_16/conv1/conv1_1/Relu:0' shape=(1, 256, 256, 64) dtype=float32>),.....]
         """
-        _, endpoints_dict = network_fn(images, spatial_squeeze=False)
+        _, endpoints_dict = network_fn(images)
         features = []
         """ 依次计算 style layer 的 gram matrix 值"""
         for layer in FLAGS.style_layers:
@@ -180,23 +180,10 @@ def _get_init_fn(FLAGS):
     """
     tf.logging.info('Use pretrained model %s' % FLAGS.loss_model_file)
 
-    """ 获得网络中不需要使用的层的名字,fc """
-    exclusions = []
-    if FLAGS.checkpoint_exclude_scopes:
-        exclusions = [scope.strip()
-                      for scope in FLAGS.checkpoint_exclude_scopes.split(',')]
-
-    # TODO(sguada) variables.filter_variables()
     """ variables_to_restore 只保留卷积层，不保留全连接层 """
     variables_to_restore = []
     for var in slim.get_model_variables():
-        excluded = False
-        for exclusion in exclusions:
-            if var.op.name.startswith(exclusion):
-                excluded = True
-                break
-        if not excluded:
-            variables_to_restore.append(var)
+        variables_to_restore.append(var)
 
     return slim.assign_from_checkpoint_fn(
         FLAGS.loss_model_file,

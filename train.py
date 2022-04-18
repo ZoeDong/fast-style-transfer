@@ -38,7 +38,6 @@ tf.app.flags.DEFINE_string('model_path', 'models', 'root path to save checkpoint
 tf.app.flags.DEFINE_list('content_layers', ['vgg_16/conv3/conv3_3'], 'use these layers for content loss')
 tf.app.flags.DEFINE_list('style_layers', ['vgg_16/conv1/conv1_2', 'vgg_16/conv2/conv2_2', 'vgg_16/conv3/conv3_3', 'vgg_16/conv4/conv4_3'], 'use these layers for style loss')
 tf.app.flags.DEFINE_string('loss_model', 'vgg_16', 'loss network.')
-tf.app.flags.DEFINE_string('checkpoint_exclude_scopes', 'vgg_16/fc', 'we only use the convolution layers, so ignore fc layers.')
 tf.app.flags.DEFINE_string('loss_model_file', 'pretrained/vgg_16.ckpt', 'the path to the checkpoint.')
 
 FLAGS = tf.app.flags.FLAGS
@@ -89,7 +88,7 @@ def main(FLAGS):
             processed_generated = tf.stack(processed_generated)  # Tensor("stack_11:0", shape=(4, 256, 256, 3), dtype=float32)
 
             """ 生成图片+内容图片 输入vgg网络 """
-            _, endpoints_dict = network_fn(tf.concat([processed_generated, processed_images], 0), spatial_squeeze=False)
+            _, endpoints_dict = network_fn(tf.concat([processed_generated, processed_images], 0))
 
             # # Log the structure of loss network
             # tf.logging.info('Loss network layers(You can define them in "content_layers" and "style_layers"):')
@@ -125,11 +124,6 @@ def main(FLAGS):
 
             for layer in FLAGS.style_layers:
                 tf.summary.scalar('style_losses/' + layer, style_loss_summary[layer])
-            # tf.summary.image('generated', generated)
-            # # tf.image_summary('processed_generated', processed_generated)  # May be better?
-            # tf.summary.image('origin', tf.stack([
-            #     image_unprocessing_fn(image) for image in tf.unstack(processed_images, axis=0, num=FLAGS.batch_size)
-            # ]))
             summary = tf.summary.merge_all()
             writer = tf.summary.FileWriter(training_path)
 

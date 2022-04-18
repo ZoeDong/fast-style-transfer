@@ -81,8 +81,7 @@ def vgg_arg_scope(weight_decay=0.0005):
 
 
 
-def vgg_16(inputs, num_classes=1000, is_training=True, dropout_keep_prob=0.5,
-           spatial_squeeze=True, scope='vgg_16'):
+def vgg_16(inputs, num_classes=1000, is_training=True, dropout_keep_prob=0.5, scope='vgg_16'):
   """Oxford Net VGG 16-Layers version D Example.
   Note: All the fully_connected layers have been transformed to conv2d layers.
         To use in classification mode, resize input to 224x224.
@@ -113,22 +112,10 @@ def vgg_16(inputs, num_classes=1000, is_training=True, dropout_keep_prob=0.5,
       net = slim.max_pool2d(net, [2, 2], scope='pool4')
       net = slim.repeat(net, 3, slim.conv2d, 512, [3, 3], scope='conv5')
       net = slim.max_pool2d(net, [2, 2], scope='pool5')
-      # Use conv2d instead of fully_connected layers.
-      net = slim.conv2d(net, 4096, [7, 7], padding='VALID', scope='fc6')
-      net = slim.dropout(net, dropout_keep_prob, is_training=is_training,
-                         scope='dropout6')
-      net = slim.conv2d(net, 4096, [1, 1], scope='fc7')
-      net = slim.dropout(net, dropout_keep_prob, is_training=is_training,
-                         scope='dropout7')
-      net = slim.conv2d(net, num_classes, [1, 1],
-                        activation_fn=None,
-                        normalizer_fn=None,
-                        scope='fc8')
+
       # Convert end_points_collection into a end_point dict.
       end_points = slim.utils.convert_collection_to_dict(end_points_collection)
-      if spatial_squeeze:
-        net = tf.squeeze(net, [1, 2], name='fc8/squeezed')
-        end_points[sc.name + '/fc8'] = net
+
       return net, end_points
 vgg_16.default_image_size = 224
 
