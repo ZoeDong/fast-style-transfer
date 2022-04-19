@@ -16,6 +16,7 @@ tf.app.flags.DEFINE_string('loss_model', 'vgg_16', 'The name of the architecture
 tf.app.flags.DEFINE_integer('image_size', 256, 'Image size to train.')
 tf.app.flags.DEFINE_string("model_file", "models.ckpt", "")
 tf.app.flags.DEFINE_string("image_file", "a.jpg", "")
+tf.app.flags.DEFINE_string("generated_image_file", "./", "")
 tf.app.flags.DEFINE_string("generated_image_name", "res-" + TIMESTAMP + ".jpg", "")
 tf.app.flags.DEFINE_float('style_strength', 1.0, '[0.0,1.0]')
 
@@ -65,7 +66,7 @@ def main(_):
 
             # Make sure 'generated' directory exists.
             # generated_file = 'generated/res.jpg'
-            generated_file = '[' + str(FLAGS.style_strength) + '-' + str(strength_new) + ']' + FLAGS.generated_image_name #'generated/res.jpg'
+            generated_file = FLAGS.generated_image_file + '[exp' + str(FLAGS.style_strength) + ']' + FLAGS.generated_image_name #'generated/res.jpg'
             if os.path.exists('generated') is False:
                 os.makedirs('generated')
 

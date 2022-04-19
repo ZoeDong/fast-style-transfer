@@ -53,7 +53,7 @@ def main(FLAGS):
     # print(style_features_t,'\n')
     
     # Make sure the training path exists.
-    training_path = os.path.join(FLAGS.model_path, FLAGS.naming + '-' + str(FLAGS.style_weight) + '-' + TIMESTAMP)
+    training_path = os.path.join(FLAGS.model_path, FLAGS.naming + '-c' + str(FLAGS.content_weight) + '-s' + str(FLAGS.style_weight) + '-r' + str(FLAGS.reconstruction_weight))
     if not(os.path.exists(training_path)):
         os.makedirs(training_path)
 
@@ -122,8 +122,8 @@ def main(FLAGS):
             tf.summary.scalar('weighted_losses/weighted_reconstruction_loss', reconstruction_loss * FLAGS.reconstruction_weight)
             tf.summary.scalar('total_loss', loss)
 
-            for layer in FLAGS.style_layers:
-                tf.summary.scalar('style_losses/' + layer, style_loss_summary[layer])
+            # for layer in FLAGS.style_layers:
+            #     tf.summary.scalar('style_losses/' + layer, style_loss_summary[layer])
             summary = tf.summary.merge_all()
             writer = tf.summary.FileWriter(training_path)
 
@@ -178,8 +178,8 @@ def main(FLAGS):
                     """logging"""
                     if step % 10 == 0:
                     # if 1:
-                        tf.logging.info('step: %d,  total Loss %f, secs/step: %f, content loss: %f, style_loss: %f, weighted_style_loss: %f, reconstruction_loss: %f, weighted_reconstruction_loss: %f, res1/layer_strength: %f, res2/layer_strength: %f, res3/layer_strength: %f, res4/layer_strength: %f, res5/layer_strength: %f, ' \
-                                % (step, loss_t, elapsed_time, content_loss_tmp, style_loss_tmp, FLAGS.style_weight * style_loss_tmp, reconstruction_loss_tmp, FLAGS.reconstruction_weight * reconstruction_loss_tmp, sess.run(tf.get_default_graph().get_tensor_by_name("res1/residual/Variable:0")), sess.run(tf.get_default_graph().get_tensor_by_name("res2/residual/Variable:0")), sess.run(tf.get_default_graph().get_tensor_by_name("res3/residual/Variable:0")), sess.run(tf.get_default_graph().get_tensor_by_name("res4/residual/Variable:0")), sess.run(tf.get_default_graph().get_tensor_by_name("res5/residual/Variable:0"))))                          
+                        tf.logging.info('step: %d,  total Loss %f, secs/step: %f, content loss: %f, style_loss: %f, weighted_style_loss: %f, reconstruction_loss: %f, weighted_reconstruction_loss: %f ' \
+                                % (step, loss_t, elapsed_time, content_loss_tmp, style_loss_tmp, FLAGS.style_weight * style_loss_tmp, reconstruction_loss_tmp, FLAGS.reconstruction_weight * reconstruction_loss_tmp))                          
                     """summary"""
                     if step % 25 == 0:
                         tf.logging.info('adding summary...')
@@ -189,6 +189,14 @@ def main(FLAGS):
                     """checkpoint"""
                     if step % 1000 == 0:
                         saver.save(sess, os.path.join(training_path, 'fast-style-model.ckpt'), global_step=step)
+                        code_ = 'python eval.py --image_file img/test.jpg ' + \
+                                    '--model_file ' + training_path + '/fast-style-model.ckpt-' + str(step) + ' ' + \
+                                    '--generated_image_file ' + training_path + '/ ' + \
+                                    '--generated_image_name ' + FLAGS.naming + '-' + str(step) + '.jpg ' \
+                                    '--style_strength 0.7'
+                        print(">>>>>>>>>>>>>>>>>>>> ", code_)
+                        os.system(code_)
+
             except tf.errors.OutOfRangeError:
                 saver.save(sess, os.path.join(training_path, 'fast-style-model.ckpt-done'), global_step=step)
                 tf.logging.info('Done training -- epoch limit reached')
