@@ -189,13 +189,14 @@ def main(FLAGS):
                     """checkpoint"""
                     if step % 1000 == 0:
                         saver.save(sess, os.path.join(training_path, 'fast-style-model.ckpt'), global_step=step)
-                        code_ = 'python eval.py --image_file img/test.jpg ' + \
-                                    '--model_file ' + training_path + '/fast-style-model.ckpt-' + str(step) + ' ' + \
-                                    '--generated_image_file ' + training_path + '/ ' + \
-                                    '--generated_image_name ' + FLAGS.naming + '-' + str(step) + '.jpg ' \
-                                    '--style_strength 0.7'
-                        print(">>>>>>>>>>>>>>>>>>>> ", code_)
-                        os.system(code_)
+                        if step != 1000:
+                            code_ = 'python eval.py --image_file img/test.jpg ' + \
+                                        '--model_file ' + training_path + '/fast-style-model.ckpt-' + str(step) + ' ' + \
+                                        '--generated_image_file ' + training_path + '/ ' + \
+                                        '--generated_image_name ' + FLAGS.naming + '-' + str(step-1000) + '.jpg ' \
+                                        '--style_strength 0.7'
+                            print(">>>>>>>>>>>>>>>>>>>> ", code_)
+                            os.system(code_)
 
             except tf.errors.OutOfRangeError:
                 saver.save(sess, os.path.join(training_path, 'fast-style-model.ckpt-done'), global_step=step)
