@@ -49,6 +49,7 @@ def main(_):
             image = tf.expand_dims(image, 0)
 
             strength_new = math.exp(FLAGS.style_strength) - 1
+            # strength_new = FLAGS.style_strength
             generated = model.net(image, strength_new, training=False) # (1, 476, 712, 3)（H:474 W:712）   [有padding：shape=(1, 456, 692, 3) [0,255] float]
             generated = tf.cast(generated, tf.uint8) # shape=(1, 456, 692, 3) [0,255] int
 
@@ -62,10 +63,7 @@ def main(_):
             FLAGS.model_file = os.path.abspath(FLAGS.model_file)
             saver.restore(sess, FLAGS.model_file)
 
-            # print("********* 1. generated:",sess.run(generated)) # shape=(456, 692, 3) [0,255]
-
             # Make sure 'generated' directory exists.
-            # generated_file = 'generated/res.jpg'
             generated_file = FLAGS.generated_image_file + '[exp' + str(FLAGS.style_strength) + ']' + FLAGS.generated_image_name #'generated/res.jpg'
             if os.path.exists('generated') is False:
                 os.makedirs('generated')

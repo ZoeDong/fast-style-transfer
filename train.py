@@ -17,13 +17,20 @@ TIMESTAMP="{0:%Y-%m-%d_%H-%M-%S}".format(datetime.now())
 slim = tf.contrib.slim
 
 ## Basic configuration
+tf.app.flags.DEFINE_list('style_strength', [0, 1/4, 2/4, 3/4, 4/4, 5/4, 6/4, 7/4], '') 
+tf.app.flags.DEFINE_string('mode', 'mixed', '["single", "mixed"]')
+
 tf.app.flags.DEFINE_string('style_image', 'img/denoised_starry.jpg', 'targeted style image.')
 tf.app.flags.DEFINE_string('naming', 'denoised_starry', 'the name of this model.')
+tf.app.flags.DEFINE_string('style_image_1', 'img/mosaic.jpg', 'targeted style image.')
+tf.app.flags.DEFINE_string('naming_1', 'mosaic', 'the name of this model.')
+
 tf.app.flags.DEFINE_string('dataset_path', './train2014', 'the path to dataset')
 
 ## Weight of the loss
 tf.app.flags.DEFINE_integer('content_weight', 1, 'weight for content features loss')
-tf.app.flags.DEFINE_integer('style_weight', 100, 'weight for style features loss')
+tf.app.flags.DEFINE_float('style_weight', 100, 'weight for style features loss')
+tf.app.flags.DEFINE_float('style_weight_1', 100, 'weight for style_1 features loss')
 tf.app.flags.DEFINE_integer('tv_weight', 0, 'weight for total variation loss')
 tf.app.flags.DEFINE_integer('reconstruction_weight', 100, 'weight for total reconstruction loss')
 
@@ -44,16 +51,14 @@ FLAGS = tf.app.flags.FLAGS
 # FLAGS.naming = FLAGS.style_image.split('/')[-1].split('.')[0]
 
 def main(FLAGS):
-    """ 计算图像风格特征 """
-    style_features_t = utils.get_style_features(FLAGS)
-    # print(style_features_t[0].shape) # (64, 64)
-    # print(style_features_t[1].shape) # (128, 128)
-    # print(style_features_t[2].shape) # (256, 256)
-    # print(style_features_t[3].shape) # (512, 512)
-    # print(style_features_t,'\n')
-    
-    # Make sure the training path exists.
-    training_path = os.path.join(FLAGS.model_path, FLAGS.naming + '-c' + str(FLAGS.content_weight) + '-s' + str(FLAGS.style_weight) + '-r' + str(FLAGS.reconstruction_weight))
+    """ 计算图像风格特征 and Make sure the training path exists"""
+    if FLAGS.mode == 'single':
+        training_path = os.path.join(FLAGS.model_path, 'single-' + FLAGS.naming + '-c' + str(FLAGS.content_weight) + '-s' + str(FLAGS.style_weight) + '-r' + str(FLAGS.reconstruction_weight))
+        style_features_t = utils.get_style_features(FLAGS)
+    elif FLAGS.mode == 'mixed':
+        training_path = os.path.join(FLAGS.model_path, 'mixed-' + FLAGS.naming + '-' + FLAGS.naming_1 + '-c' + str(FLAGS.content_weight) + '-s1' + str(FLAGS.style_weight) + '-s2' + str(FLAGS.style_weight_1) + '-r' + str(FLAGS.reconstruction_weight))
+        style_features_t, style_features_t_1 = utils.get_style_features(FLAGS)
+
     if not(os.path.exists(training_path)):
         os.makedirs(training_path)
 
@@ -76,11 +81,7 @@ def main(FLAGS):
                                             FLAGS.dataset_path, image_preprocessing_fn, epochs=FLAGS.epoch) # Tensor("batch:0", shape=(4, 256, 256, 3), dtype=float32)
 
             """ 内容图片 -> 生成图片 """
-            # style_strength_list = [0.1*x for x in range(11)]
-            # style_strength = style_strength_list[np.random.randint(0,11)]
-            style_strength = 1
-
-            generated = model.net(processed_images, style_strength, training=True) # Tensor("Slice_1:0", shape=(4, 256, 256, 3), dtype=float32)
+            generated = model.net(processed_images, FLAGS.style_strength, training=True) # Tensor("Slice_1:0", shape=(4, 256, 256, 3), dtype=float32)
 
             processed_generated = [image_preprocessing_fn(image, FLAGS.image_size, FLAGS.image_size)
                                    for image in tf.unstack(generated, axis=0, num=FLAGS.batch_size)
@@ -97,27 +98,27 @@ def main(FLAGS):
 
             """Build Losses"""
             content_loss = utils.content_loss(endpoints_dict, FLAGS.content_layers)
-            style_loss, style_loss_summary = utils.style_loss(endpoints_dict, style_features_t, FLAGS.style_layers)
+            if FLAGS.mode == 'single':
+                style_loss, style_loss_summary = utils.style_loss_single(endpoints_dict, FLAGS.style_layers, FLAGS.style_strength, style_features_t, FLAGS.style_weight)
+            elif FLAGS.mode == 'mixed':
+                style_loss, style_loss_summary = utils.style_loss_mixed(endpoints_dict, FLAGS.style_layers, FLAGS.style_strength, style_features_t, style_features_t_1, FLAGS.style_weight, FLAGS.style_weight_1)
+
             tv_loss = utils.total_variation_loss(generated)  # use the unprocessed image
             
             processed_images_0, _, _, _ = tf.split(processed_images, 4, 0) # (2, 256, 256, 3) = 393216
             processed_generated_0, _, _, _ = tf.split(processed_generated, 4, 0) # (2, 256, 256, 3) = 393216
             reconstruction_loss =  tf.norm(tf.abs(processed_images_0 - processed_generated_0), 1) / tf.to_float(tf.size(processed_images_0))
 
-            loss = style_strength * FLAGS.style_weight * style_loss + \
+            loss = style_loss + \
                     FLAGS.content_weight * content_loss + \
                     FLAGS.tv_weight * tv_loss + \
                     FLAGS.reconstruction_weight * reconstruction_loss
 
             # Add Summary for visualization in tensorboard.
             """Add Summary"""
-            tf.summary.scalar('losses/content_loss', content_loss)
-            tf.summary.scalar('losses/style_loss', style_loss)
-            tf.summary.scalar('losses/regularizer_loss', tv_loss)
-            tf.summary.scalar('losses/reconstruction_loss', reconstruction_loss)
-
             tf.summary.scalar('weighted_losses/weighted_content_loss', content_loss * FLAGS.content_weight)
-            tf.summary.scalar('weighted_losses/weighted_style_loss', style_loss * FLAGS.style_weight)
+            tf.summary.scalar('weighted_losses/weighted_style_loss', style_loss)
+            tf.summary.scalar('weighted_losses/regularizer_loss', tv_loss)
             tf.summary.scalar('weighted_losses/weighted_regularizer_loss', tv_loss * FLAGS.tv_weight)
             tf.summary.scalar('weighted_losses/weighted_reconstruction_loss', reconstruction_loss * FLAGS.reconstruction_weight)
             tf.summary.scalar('total_loss', loss)
@@ -178,8 +179,8 @@ def main(FLAGS):
                     """logging"""
                     if step % 10 == 0:
                     # if 1:
-                        tf.logging.info('step: %d,  total Loss %f, secs/step: %f, content loss: %f, style_loss: %f, weighted_style_loss: %f, reconstruction_loss: %f, weighted_reconstruction_loss: %f ' \
-                                % (step, loss_t, elapsed_time, content_loss_tmp, style_loss_tmp, FLAGS.style_weight * style_loss_tmp, reconstruction_loss_tmp, FLAGS.reconstruction_weight * reconstruction_loss_tmp))                          
+                        tf.logging.info('step: %d,  total Loss %f, secs/step: %f, content loss: %f, style_loss: %f, reconstruction_loss: %f ' \
+                                % (step, loss_t, elapsed_time, content_loss_tmp, style_loss_tmp, FLAGS.reconstruction_weight * reconstruction_loss_tmp)) # all losses are weighted
                     """summary"""
                     if step % 25 == 0:
                         tf.logging.info('adding summary...')
@@ -193,7 +194,7 @@ def main(FLAGS):
                                     '--model_file ' + training_path + '/fast-style-model.ckpt-' + str(step) + ' ' + \
                                     '--generated_image_file ' + training_path + '/ ' + \
                                     '--generated_image_name ' + FLAGS.naming + '-' + FLAGS.naming_1 + '-' + str(step) + '.jpg ' \
-                                    '--style_strength 0.7'
+                                    '--style_strength 1'
                         print(">>>>>>>>>>>>>>>>>>>> ", code_)
                         os.system(code_)
 
