@@ -55,7 +55,7 @@ def gram(layer):
     grams = tf.matmul(filters, filters, transpose_a=True) / tf.to_float(width * height * num_filters)
     return grams
 
-def get_style_features(FLAGS):
+def get_style_features_single(FLAGS):
     """
     For the "style_image", the preprocessing step is:
     1. Resize the shorter side to FLAGS.image_size
@@ -63,10 +63,64 @@ def get_style_features(FLAGS):
     """
     with tf.Graph().as_default():
         """ 返回网络结构函数 """
-        network_fn = nets_factory.get_network_fn(
+        network_fn = nets_factory.get_network_fn(FLAGS.loss_model, num_classes=1, is_training=False)
+        """ 返回预处理/不进行预处理的函数 """
+        image_preprocessing_fn, image_unprocessing_fn = preprocessing_factory.get_preprocessing(
             FLAGS.loss_model,
-            num_classes=1,
             is_training=False)
+
+        """ 获得style image """
+        # Get the style image data
+        size = FLAGS.image_size
+        img_bytes = tf.read_file(FLAGS.style_image)
+        if FLAGS.style_image.lower().endswith('png'):
+            image = tf.image.decode_png(img_bytes)
+        else:
+            image = tf.image.decode_jpeg(img_bytes)
+        images = tf.expand_dims(image_preprocessing_fn(image, size, size), 0)
+        
+        """
+        神经网络函数处理图像,返回 神经网络全连接层Tensor 和 网络节点dict:
+        net: Tensor("vgg_16/fc8/BiasAdd:0", shape=(1, 2, 2, 1), dtype=float32), 
+        endpoints_dict: OrderedDict([('vgg_16/conv1/conv1_1', <tf.Tensor 'vgg_16/conv1/conv1_1/Relu:0' shape=(1, 256, 256, 64) dtype=float32>),.....]
+        """
+        _, endpoints_dict = network_fn(images)
+        features = []
+        """ 依次计算 style layer 的 gram matrix 值"""
+        for layer in FLAGS.style_layers:
+            feature = endpoints_dict[layer]
+            feature = tf.squeeze(gram(feature), [0])  # remove the batch dimension
+            features.append(feature)
+
+        with tf.Session() as sess:
+            # Restore variables for loss network.
+            """ 剔除fc层的网络 """
+            init_func = _get_init_fn(FLAGS)
+            init_func(sess)
+
+            # Make sure the 'generated' directory is exists.
+            if os.path.exists('generated') is False:
+                os.makedirs('generated')
+            # Indicate cropped style image path
+            save_file = 'generated/target_style_' + FLAGS.naming + '.jpg'
+
+            # Write preprocessed style image to indicated path
+            with open(save_file, 'wb') as f:
+                target_image = image_unprocessing_fn(images[0, :])
+                value = tf.image.encode_jpeg(tf.cast(target_image, tf.uint8))
+                f.write(sess.run(value))
+                tf.logging.info('Target style pattern is saved to: %s.' % save_file)
+            return sess.run(features)
+
+def get_style_features_mixed(FLAGS):
+    """
+    For the "style_image", the preprocessing step is:
+    1. Resize the shorter side to FLAGS.image_size
+    2. Apply central crop
+    """
+    with tf.Graph().as_default():
+        """ 返回网络结构函数 """
+        network_fn = nets_factory.get_network_fn(FLAGS.loss_model, num_classes=1, is_training=False)
         """ 返回预处理/不进行预处理的函数 """
         image_preprocessing_fn, image_unprocessing_fn = preprocessing_factory.get_preprocessing(
             FLAGS.loss_model,
@@ -82,38 +136,28 @@ def get_style_features(FLAGS):
             image = tf.image.decode_jpeg(img_bytes)
         images = tf.expand_dims(image_preprocessing_fn(image, size, size), 0)
 
-        if FLAGS.mode == 'mixed':
-            img_bytes_1 = tf.read_file(FLAGS.style_image_1)
-            if FLAGS.style_image_1.lower().endswith('png'):
-                image_1 = tf.image.decode_png(img_bytes_1)
-            else:
-                image_1 = tf.image.decode_jpeg(img_bytes_1)
-            images_1 = tf.expand_dims(image_preprocessing_fn(image_1, size, size), 0)
+        img_bytes_1 = tf.read_file(FLAGS.style_image_1)
+        if FLAGS.style_image_1.lower().endswith('png'):
+            image_1 = tf.image.decode_png(img_bytes_1)
+        else:
+            image_1 = tf.image.decode_jpeg(img_bytes_1)
+        images_1 = tf.expand_dims(image_preprocessing_fn(image_1, size, size), 0)
         
         """
         神经网络函数处理图像,返回 神经网络全连接层Tensor 和 网络节点dict:
         net: Tensor("vgg_16/fc8/BiasAdd:0", shape=(1, 2, 2, 1), dtype=float32), 
         endpoints_dict: OrderedDict([('vgg_16/conv1/conv1_1', <tf.Tensor 'vgg_16/conv1/conv1_1/Relu:0' shape=(1, 256, 256, 64) dtype=float32>),.....]
         """
-        if FLAGS.mode == 'single':
-            _, endpoints_dict = network_fn(images)
-            features = []
-            """ 依次计算 style layer 的 gram matrix 值"""
-            for layer in FLAGS.style_layers:
-                feature = endpoints_dict[layer]
-                feature = tf.squeeze(gram(feature), [0])  # remove the batch dimension
-                features.append(feature)
-        elif FLAGS.mode == 'mixed':
-            _, endpoints_dict = network_fn(tf.concat([images, images_1], 0))
-            features = []
-            features_1 = []
-            """ 依次计算 style layer 的 gram matrix 值"""
-            for layer in FLAGS.style_layers:
-                feature, feature_1 = tf.split(endpoints_dict[layer], 2, 0)
-                feature = tf.squeeze(gram(feature), [0])  # remove the batch dimension
-                feature_1 = tf.squeeze(gram(feature_1), [0])  # remove the batch dimension
-                features.append(feature)
-                features_1.append(feature_1)
+        _, endpoints_dict = network_fn(tf.concat([images, images_1], 0))
+        features = []
+        features_1 = []
+        """ 依次计算 style layer 的 gram matrix 值"""
+        for layer in FLAGS.style_layers:
+            feature, feature_1 = tf.split(endpoints_dict[layer], 2, 0)
+            feature = tf.squeeze(gram(feature), [0])  # remove the batch dimension
+            feature_1 = tf.squeeze(gram(feature_1), [0])  # remove the batch dimension
+            features.append(feature)
+            features_1.append(feature_1)
 
         with tf.Session() as sess:
             # Restore variables for loss network.
@@ -135,14 +179,12 @@ def get_style_features(FLAGS):
                 f.write(sess.run(value))
                 tf.logging.info('Target style pattern is saved to: %s.' % save_file)
 
-            if FLAGS.mode == 'mixed':
-                with open(save_file_1, 'wb') as f:
-                    target_image_1 = image_unprocessing_fn(images_1[0, :])
-                    value_1 = tf.image.encode_jpeg(tf.cast(target_image_1, tf.uint8))
-                    f.write(sess.run(value_1))
-                    tf.logging.info('Target style pattern is saved to: %s.' % save_file_1)
-                return sess.run([features, features_1])
-            return sess.run(features)
+            with open(save_file_1, 'wb') as f:
+                target_image_1 = image_unprocessing_fn(images_1[0, :])
+                value_1 = tf.image.encode_jpeg(tf.cast(target_image_1, tf.uint8))
+                f.write(sess.run(value_1))
+                tf.logging.info('Target style pattern is saved to: %s.' % save_file_1)
+            return sess.run([features, features_1])
 
 def style_loss_single(endpoints_dict, style_layers, style_strength, style_features_t, style_weight):
     # gram_size = 64 * 64 / 128 * 128 / 256 * 256 / 512 * 512
@@ -176,8 +218,8 @@ def style_loss_mixed(endpoints_dict, style_layers, style_strength, style_feature
         for i in range(batch):
             layer_style_loss += tf.nn.l2_loss(
                     (style_weight_sqrt + style_weight_sqrt_1)/2 * gram(generated_content_list[i]) - 
-                    (style_weight_sqrt* style_strength[i] * style_gram + style_weight_sqrt * (1 - style_strength[i]) * style_gram_1)
-                ) * 2 / tf.to_float(size)
+                    (style_weight_sqrt* style_strength[i] * style_gram + style_weight_sqrt_1 * (1 - style_strength[i]) * style_gram_1)
+                    ) * 2 / tf.to_float(size)
         layer_style_loss = layer_style_loss / batch
 
         style_loss_summary[layer] = layer_style_loss

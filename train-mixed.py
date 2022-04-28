@@ -17,8 +17,7 @@ TIMESTAMP="{0:%Y-%m-%d_%H-%M-%S}".format(datetime.now())
 slim = tf.contrib.slim
 
 ## Basic configuration
-tf.app.flags.DEFINE_list('style_strength', [0, 1/4, 2/4, 3/4, 4/4, 5/4, 6/4, 7/4], '') 
-tf.app.flags.DEFINE_string('mode', 'mixed', '["single", "mixed"]')
+tf.app.flags.DEFINE_list('style_strength', [0, 1/7, 2/7, 3/7, 4/7, 5/7, 6/7, 1], '') 
 
 tf.app.flags.DEFINE_string('style_image', 'img/denoised_starry.jpg', 'targeted style image.')
 tf.app.flags.DEFINE_string('naming', 'denoised_starry', 'the name of this model.')
@@ -52,12 +51,8 @@ FLAGS = tf.app.flags.FLAGS
 
 def main(FLAGS):
     """ 计算图像风格特征 and Make sure the training path exists"""
-    if FLAGS.mode == 'single':
-        training_path = os.path.join(FLAGS.model_path, 'single-' + FLAGS.naming + '-c' + str(FLAGS.content_weight) + '-s' + str(FLAGS.style_weight) + '-r' + str(FLAGS.reconstruction_weight))
-        style_features_t = utils.get_style_features(FLAGS)
-    elif FLAGS.mode == 'mixed':
-        training_path = os.path.join(FLAGS.model_path, 'mixed-' + FLAGS.naming + '-' + FLAGS.naming_1 + '-c' + str(FLAGS.content_weight) + '-s1' + str(FLAGS.style_weight) + '-s2' + str(FLAGS.style_weight_1) + '-r' + str(FLAGS.reconstruction_weight))
-        style_features_t, style_features_t_1 = utils.get_style_features(FLAGS)
+    training_path = os.path.join(FLAGS.model_path, 'mixed-' + FLAGS.naming + '-' + FLAGS.naming_1 + '-c.' + str(FLAGS.content_weight) + '-s1.' + str(FLAGS.style_weight) + '-s2.' + str(FLAGS.style_weight_1) + '-r.' + str(FLAGS.reconstruction_weight))
+    style_features_t, style_features_t_1 = utils.get_style_features_mixed(FLAGS)
 
     if not(os.path.exists(training_path)):
         os.makedirs(training_path)
@@ -66,10 +61,7 @@ def main(FLAGS):
         with tf.Session() as sess:
             """Build Network"""
             """ 返回网络结构函数 """
-            network_fn = nets_factory.get_network_fn(
-                FLAGS.loss_model,
-                num_classes=1,
-                is_training=False)
+            network_fn = nets_factory.get_network_fn(FLAGS.loss_model, num_classes=1, is_training=False)
 
             """ 返回预处理/不进行预处理的函数 """
             image_preprocessing_fn, image_unprocessing_fn = preprocessing_factory.get_preprocessing(
@@ -98,10 +90,7 @@ def main(FLAGS):
 
             """Build Losses"""
             content_loss = utils.content_loss(endpoints_dict, FLAGS.content_layers)
-            if FLAGS.mode == 'single':
-                style_loss, style_loss_summary = utils.style_loss_single(endpoints_dict, FLAGS.style_layers, FLAGS.style_strength, style_features_t, FLAGS.style_weight)
-            elif FLAGS.mode == 'mixed':
-                style_loss, style_loss_summary = utils.style_loss_mixed(endpoints_dict, FLAGS.style_layers, FLAGS.style_strength, style_features_t, style_features_t_1, FLAGS.style_weight, FLAGS.style_weight_1)
+            style_loss, style_loss_summary = utils.style_loss_mixed(endpoints_dict, FLAGS.style_layers, FLAGS.style_strength, style_features_t, style_features_t_1, FLAGS.style_weight, FLAGS.style_weight_1)
 
             tv_loss = utils.total_variation_loss(generated)  # use the unprocessed image
             
@@ -131,6 +120,13 @@ def main(FLAGS):
             """Prepare to Train"""
             global_step = tf.Variable(0, name="global_step", trainable=False)
 
+            """ 定义可保存的变量 """
+            variables_to_restore = []
+            for v in tf.global_variables():
+                print(v)
+                if not(v.name.startswith(FLAGS.loss_model)):
+                    variables_to_restore.append(v)
+            saver = tf.train.Saver(variables_to_restore, max_to_keep=100, write_version=tf.train.SaverDef.V1) # write_meta_graph=False, 
 
             """ 定义可训练的变量 只保留 transform network 部分"""
             variable_to_train = []
@@ -139,23 +135,14 @@ def main(FLAGS):
                     variable_to_train.append(variable)
             train_op = tf.train.AdamOptimizer(1e-3).minimize(loss, global_step=global_step, var_list=variable_to_train)
 
-            """ 定义可保存的变量 """
-            variables_to_restore = []
-            for v in tf.global_variables():
-                if not(v.name.startswith(FLAGS.loss_model)):
-                    variables_to_restore.append(v)
-            saver = tf.train.Saver(variables_to_restore, max_to_keep=100, write_version=tf.train.SaverDef.V1)
-
             """ 初始化变量 """
             sess.run([tf.global_variables_initializer(), tf.local_variables_initializer()])
 
             """ 初始化损失网络变量 """
-            # Restore variables for loss network.
             init_func = utils._get_init_fn(FLAGS)
             init_func(sess)
 
             """ 从checkpoint中加载变量 """
-            # Restore variables for training model if the checkpoint file exists.
             last_file = tf.train.latest_checkpoint(training_path)
             if last_file:
                 tf.logging.info('Restoring model from {}'.format(last_file))
@@ -178,7 +165,6 @@ def main(FLAGS):
                     start_time = time.time()
                     """logging"""
                     if step % 10 == 0:
-                    # if 1:
                         tf.logging.info('step: %d,  total Loss %f, secs/step: %f, content loss: %f, style_loss: %f, reconstruction_loss: %f ' \
                                 % (step, loss_t, elapsed_time, content_loss_tmp, style_loss_tmp, FLAGS.reconstruction_weight * reconstruction_loss_tmp)) # all losses are weighted
                     """summary"""
@@ -193,8 +179,7 @@ def main(FLAGS):
                         code_ = 'python eval.py --image_file img/test.jpg ' + \
                                     '--model_file ' + training_path + '/fast-style-model.ckpt-' + str(step) + ' ' + \
                                     '--generated_image_file ' + training_path + '/ ' + \
-                                    '--generated_image_name ' + FLAGS.naming + '-' + FLAGS.naming_1 + '-' + str(step) + '.jpg ' \
-                                    '--style_strength 1'
+                                    '--generated_image_name ' + FLAGS.naming + '-' + FLAGS.naming_1 + '-' + str(step) + '.jpg '
                         print(">>>>>>>>>>>>>>>>>>>> ", code_)
                         os.system(code_)
 

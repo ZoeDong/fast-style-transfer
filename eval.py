@@ -14,11 +14,11 @@ TIMESTAMP="{0:%Y-%m-%d_%H-%M-%S}".format(datetime.now())
 
 tf.app.flags.DEFINE_string('loss_model', 'vgg_16', 'The name of the architecture to evaluate. ')
 tf.app.flags.DEFINE_integer('image_size', 256, 'Image size to train.')
-tf.app.flags.DEFINE_string("model_file", "models.ckpt", "")
-tf.app.flags.DEFINE_string("image_file", "a.jpg", "")
+tf.app.flags.DEFINE_string("model_file", "./fast-style-model.ckpt-17000", "")
+tf.app.flags.DEFINE_string("image_file", "img/test.jpg", "")
 tf.app.flags.DEFINE_string("generated_image_file", "./", "")
 tf.app.flags.DEFINE_string("generated_image_name", "res-" + TIMESTAMP + ".jpg", "")
-tf.app.flags.DEFINE_float('style_strength', 1.0, '[0.0,1.0]')
+tf.app.flags.DEFINE_list('style_strength', [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0], '[0.0,1.0]')
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -47,14 +47,11 @@ def main(_):
 
             # Add batch dimension
             image = tf.expand_dims(image, 0)
+            image = tf.tile(image, [len(FLAGS.style_strength), 1, 1, 1]) # 复制image
 
-            strength_new = math.exp(FLAGS.style_strength) - 1
-            # strength_new = FLAGS.style_strength
-            generated = model.net(image, strength_new, training=False) # (1, 476, 712, 3)（H:474 W:712）   [有padding：shape=(1, 456, 692, 3) [0,255] float]
+            generated = model.net(image, FLAGS.style_strength, training=False) # (1, 476, 712, 3)（H:474 W:712）   [有padding：shape=(1, 456, 692, 3) [0,255] float]
             generated = tf.cast(generated, tf.uint8) # shape=(1, 456, 692, 3) [0,255] int
-
-            # Remove batch dimension
-            generated = tf.squeeze(generated, [0]) # shape=(456, 692, 3) [0,255] int
+            res = [tf.image.encode_jpeg(generated[i]) for i in range(len(FLAGS.style_strength))]
 
             # Restore model variables.
             saver = tf.train.Saver(tf.global_variables(), write_version=tf.train.SaverDef.V1)
@@ -63,19 +60,18 @@ def main(_):
             FLAGS.model_file = os.path.abspath(FLAGS.model_file)
             saver.restore(sess, FLAGS.model_file)
 
+            start_time = time.time()
+            res_tmp = sess.run(res)
+            tf.logging.info('Elapsed time/pic: %fs' % (time.time() - start_time))
+            
             # Make sure 'generated' directory exists.
-            generated_file = FLAGS.generated_image_file + '[exp' + str(FLAGS.style_strength) + ']' + FLAGS.generated_image_name #'generated/res.jpg'
             if os.path.exists('generated') is False:
                 os.makedirs('generated')
-
-            # # Generate and write image data to file.
-            with open(generated_file, 'wb') as img:
-                start_time = time.time()
-                img.write(sess.run(tf.image.encode_jpeg(generated)))
-                end_time = time.time()
-                tf.logging.info('Elapsed time: %fs' % (end_time - start_time))
-
-                tf.logging.info('Done. Please check %s.' % generated_file)
+            for i in range(len(FLAGS.style_strength)):
+                generated_file = FLAGS.generated_image_file + '[' + str(FLAGS.style_strength[i]) + ']' + FLAGS.generated_image_name #'generated/res.jpg'
+                with open(generated_file, 'wb') as img:
+                    img.write(res_tmp[i])                    
+                    tf.logging.info('Done. Please check %s.' % generated_file)
 
 
 if __name__ == '__main__':

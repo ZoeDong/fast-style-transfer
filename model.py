@@ -1,5 +1,6 @@
 import tensorflow as tf
 from tensorflow.contrib.slim import instance_norm
+import math
 
 def conv2d(x, input_filters, output_filters, kernel, strides, mode='REFLECT'):
     with tf.variable_scope('conv'):
@@ -85,37 +86,33 @@ def relu(input):
     nan_to_zero = tf.where(tf.equal(relu, relu), relu, tf.zeros_like(relu))
     return nan_to_zero
 
+def strength_cnt(input_strength, layer_strength, layer_strength_1, training):
+    strength = input_strength * layer_strength + (1 - input_strength) * layer_strength_1
+    # strength = input_strength * layer_strength + (math.exp(1) - 1 - input_strength) * layer_strength_1
+    return strength
 
 def residual(x, filters, kernel, strides, style_strength, training):
     with tf.variable_scope('residual'):
         conv1 = conv2d(x, filters, filters, kernel, strides)
         conv2 = conv2d(relu(conv1), filters, filters, kernel, strides) # shape=(4, 69, 69, 128)
 
-        layer_strength = tf.Variable(tf.constant(1.0), trainable=True) # 添加一个可训练参数
-        layer_strength_1 = tf.Variable(tf.constant(1.0), trainable=True) # 添加一个可训练参数
+        layer_strength = tf.Variable(tf.constant(1.0), trainable=True) # 添加一个可训练参数：single：表示单风格，mixed：表示第一种风格
+        layer_strength_1 = tf.Variable(tf.constant(1.0), trainable=True) # 添加一个可训练参数：single：表示原图的风格，mixed：表示第二种风格
 
-        if training:
-            batch_size = tf.shape(conv2)[0].eval()
-            residual = []
-            cnt = 0
-            for x_each, conv2_each in zip(tf.unstack(x, axis=0, num=batch_size), tf.unstack(conv2, axis=0, num=batch_size)):
-                strength = style_strength[cnt] * layer_strength + (1 - style_strength[cnt]) * layer_strength_1 # 可训练参数和style strength绑定
-                strength = 2 * tf.abs(strength) / (1 + tf.abs(strength)) # 限制范围在[0,2)
-                residual.append(x_each + strength * conv2_each) # zoe S5 v2: layer_strength shape = [1,] 改回标量
-                cnt += 1
-            residual = tf.stack(residual)
-        else:
-            strength = style_strength * layer_strength + (1 - style_strength) * layer_strength_1 # 可训练参数和style strength绑定
+        residual = []
+        cnt = 0
+        for x_each, conv2_each in zip(tf.unstack(x, axis=0), tf.unstack(conv2, axis=0)):
+            strength = strength_cnt(style_strength[cnt], layer_strength, layer_strength_1, training)
             strength = 2 * tf.abs(strength) / (1 + tf.abs(strength)) # 限制范围在[0,2)
-            residual = x + strength * conv2
+            residual.append(x_each + strength * conv2_each) # zoe S5 v2: layer_strength shape = [1,] 改回标量
+            cnt += 1
+        residual = tf.stack(residual)
         return residual
 
 
 def net(image, style_strength, training):
     # Less border effects when padding a little before passing through ..
-    # print("*********** before image.shape:",image.shape)/
     image = tf.pad(image, [[0, 0], [10, 10], [10, 10], [0, 0]], mode='REFLECT')
-    # print("*********** after  image.shape:",image.shape)
 
     is_instance_norm = True
     if is_instance_norm:
@@ -190,9 +187,9 @@ def net(image, style_strength, training):
         with tf.variable_scope('deconv3'):
             # conv2d return: Tensor("deconv3/conv/conv:0", shape=(4, 276, 276, 3), dtype=float32)
             deconv3 = tf.nn.tanh(batch_norm(conv2d(deconv2, 32, 3, 9, 1), 3, training))
+
     y = (deconv3 + 1) * 127.5
-    # print("**************** y:",y)
-    # y = deconv3
+    # tf.multiply(tf.add(deconv3, 1), 127.5)
 
     # Remove border effect reducing padding.
     height = tf.shape(y)[1]
