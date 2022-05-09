@@ -17,20 +17,22 @@ TIMESTAMP="{0:%Y-%m-%d_%H-%M-%S}".format(datetime.now())
 slim = tf.contrib.slim
 
 ## Basic configuration
-tf.app.flags.DEFINE_list('style_strength', [0, 1/7, 2/7, 3/7, 4/7, 5/7, 6/7, 1], '') 
+tf.app.flags.DEFINE_string('mode', 'single', 'single/mixed.')
 
 tf.app.flags.DEFINE_string('style_image', 'img/denoised_starry.jpg', 'targeted style image.')
 tf.app.flags.DEFINE_string('naming', 'denoised_starry', 'the name of this model.')
+
 tf.app.flags.DEFINE_string('style_image_1', 'img/mosaic.jpg', 'targeted style image.')
 tf.app.flags.DEFINE_string('naming_1', 'mosaic', 'the name of this model.')
+tf.app.flags.DEFINE_float('style_weight_1', 100, 'weight for style_1 features loss')
 
+tf.app.flags.DEFINE_list('style_strength',  [0, 0, 1/3, 1/3, 2/3, 2/3, 1, 1], '') 
 tf.app.flags.DEFINE_string('dataset_path', './train2014', 'the path to dataset')
 
 ## Weight of the loss
 tf.app.flags.DEFINE_integer('content_weight', 1, 'weight for content features loss')
 tf.app.flags.DEFINE_float('style_weight', 100, 'weight for style features loss')
-tf.app.flags.DEFINE_float('style_weight_1', 100, 'weight for style_1 features loss')
-tf.app.flags.DEFINE_integer('tv_weight', 0, 'weight for total variation loss')
+tf.app.flags.DEFINE_float'tv_weight', 0.0001, 'weight for total variation loss')
 tf.app.flags.DEFINE_integer('reconstruction_weight', 100, 'weight for total reconstruction loss')
 
 ## The size, the iter number to run
@@ -51,8 +53,12 @@ FLAGS = tf.app.flags.FLAGS
 
 def main(FLAGS):
     """ 计算图像风格特征 and Make sure the training path exists"""
-    training_path = os.path.join(FLAGS.model_path, 'mixed-' + FLAGS.naming + '-' + FLAGS.naming_1 + '-c.' + str(FLAGS.content_weight) + '-s1.' + str(FLAGS.style_weight) + '-s2.' + str(FLAGS.style_weight_1) + '-r.' + str(FLAGS.reconstruction_weight))
-    style_features_t, style_features_t_1 = utils.get_style_features_mixed(FLAGS)
+    if FLAGS.mode = 'single':
+        training_path = os.path.join(FLAGS.model_path, 'single-' + FLAGS.naming + '-c.' + str(FLAGS.content_weight) + '-s.' + str(FLAGS.style_weight) + '-r.' + str(FLAGS.reconstruction_weight))
+        style_features_t = utils.get_style_features_single(FLAGS)
+    elif FLAGS.mode = 'mixed':
+        training_path = os.path.join(FLAGS.model_path, 'mixed-' + FLAGS.naming + '-' + FLAGS.naming_1 + '-c.' + str(FLAGS.content_weight) + '-s1.' + str(FLAGS.style_weight) + '-s2.' + str(FLAGS.style_weight_1) + '-r.' + str(FLAGS.reconstruction_weight))
+        style_features_t, style_features_t_1 = utils.get_style_features_mixed(FLAGS)
 
     if not(os.path.exists(training_path)):
         os.makedirs(training_path)
@@ -82,18 +88,16 @@ def main(FLAGS):
 
             """ 生成图片+内容图片 输入vgg网络 """
             _, endpoints_dict = network_fn(tf.concat([processed_generated, processed_images], 0))
-
-            # # Log the structure of loss network
-            # tf.logging.info('Loss network layers(You can define them in "content_layers" and "style_layers"):')
-            # for key in endpoints_dict:
-            #     tf.logging.info(key)
-
             """Build Losses"""
             content_loss = utils.content_loss(endpoints_dict, FLAGS.content_layers)
-            style_loss, style_loss_summary = utils.style_loss_mixed(endpoints_dict, FLAGS.style_layers, FLAGS.style_strength, style_features_t, style_features_t_1, FLAGS.style_weight, FLAGS.style_weight_1)
+            if FLAGS.mode = 'single':
+                style_loss, style_loss_summary = utils.style_loss_single(endpoints_dict, FLAGS.style_layers, FLAGS.style_strength, style_features_t, FLAGS.style_weight)
+            elif FLAGS.mode = 'mixed':
+                style_loss, style_loss_summary = utils.style_loss_mixed(endpoints_dict, FLAGS.style_layers, FLAGS.style_strength, style_features_t, style_features_t_1, FLAGS.style_weight, FLAGS.style_weight_1)
 
             tv_loss = utils.total_variation_loss(generated)  # use the unprocessed image
             
+            # batch size = 8 and strength[0] == 0 and strength[1] == 0 
             processed_images_0, _, _, _ = tf.split(processed_images, 4, 0) # (2, 256, 256, 3) = 393216
             processed_generated_0, _, _, _ = tf.split(processed_generated, 4, 0) # (2, 256, 256, 3) = 393216
             reconstruction_loss =  tf.norm(tf.abs(processed_images_0 - processed_generated_0), 1) / tf.to_float(tf.size(processed_images_0))
@@ -123,10 +127,9 @@ def main(FLAGS):
             """ 定义可保存的变量 """
             variables_to_restore = []
             for v in tf.global_variables():
-                print(v)
                 if not(v.name.startswith(FLAGS.loss_model)):
                     variables_to_restore.append(v)
-            saver = tf.train.Saver(variables_to_restore, max_to_keep=100, write_version=tf.train.SaverDef.V1) # write_meta_graph=False, 
+            saver = tf.train.Saver(variables_to_restore, max_to_keep=100, write_version=tf.train.SaverDef.V1)
 
             """ 定义可训练的变量 只保留 transform network 部分"""
             variable_to_train = []
@@ -134,6 +137,7 @@ def main(FLAGS):
                 if not(variable.name.startswith(FLAGS.loss_model)):
                     variable_to_train.append(variable)
             train_op = tf.train.AdamOptimizer(1e-3).minimize(loss, global_step=global_step, var_list=variable_to_train)
+
 
             """ 初始化变量 """
             sess.run([tf.global_variables_initializer(), tf.local_variables_initializer()])
@@ -175,16 +179,12 @@ def main(FLAGS):
                         writer.flush()
                     """checkpoint"""
                     if step % 1000 == 0:
-                        saver.save(sess, os.path.join(training_path, 'fast-style-model.ckpt'), global_step=step)
-                        code_ = 'python eval.py --image_file img/test.jpg ' + \
-                                    '--model_file ' + training_path + '/fast-style-model.ckpt-' + str(step) + ' ' + \
-                                    '--generated_image_file ' + training_path + '/ ' + \
-                                    '--generated_image_name ' + FLAGS.naming + '-' + FLAGS.naming_1 + '-' + str(step) + '.jpg '
-                        print(">>>>>>>>>>>>>>>>>>>> ", code_)
-                        os.system(code_)
-
+                        if step / 1000 == 1:
+                            saver.save(sess, os.path.join(training_path, 'fast-style-model.ckpt'), global_step=step)
+                        else:
+                            saver.save(sess, os.path.join(training_path, 'fast-style-model.ckpt'), global_step=step, write_meta_graph=False)
             except tf.errors.OutOfRangeError:
-                saver.save(sess, os.path.join(training_path, 'fast-style-model.ckpt-done'), global_step=step)
+                saver.save(sess, os.path.join(training_path, 'fast-style-model.ckpt-done'), global_step=step, write_meta_graph=False)
                 tf.logging.info('Done training -- epoch limit reached')
             finally:
                 coord.request_stop()

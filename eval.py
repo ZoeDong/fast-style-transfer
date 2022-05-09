@@ -18,7 +18,7 @@ tf.app.flags.DEFINE_string("model_file", "./fast-style-model.ckpt-17000", "")
 tf.app.flags.DEFINE_string("image_file", "img/test.jpg", "")
 tf.app.flags.DEFINE_string("generated_image_file", "./", "")
 tf.app.flags.DEFINE_string("generated_image_name", "res-" + TIMESTAMP + ".jpg", "")
-tf.app.flags.DEFINE_list('style_strength', [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0], '[0.0,1.0]')
+tf.app.flags.DEFINE_list('style_strength', [0.0, 0.2, 0.4, 0.6, 0.8, 1.0], '[0.0,1.0]')
 
 FLAGS = tf.app.flags.FLAGS
 
