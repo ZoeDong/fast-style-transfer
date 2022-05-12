@@ -32,7 +32,7 @@ tf.app.flags.DEFINE_string('dataset_path', './train2014', 'the path to dataset')
 ## Weight of the loss
 tf.app.flags.DEFINE_integer('content_weight', 1, 'weight for content features loss')
 tf.app.flags.DEFINE_float('style_weight', 100, 'weight for style features loss')
-tf.app.flags.DEFINE_float'tv_weight', 0.0001, 'weight for total variation loss')
+tf.app.flags.DEFINE_float('tv_weight', 0.0001, 'weight for total variation loss')
 tf.app.flags.DEFINE_integer('reconstruction_weight', 100, 'weight for total reconstruction loss')
 
 ## The size, the iter number to run
@@ -53,10 +53,10 @@ FLAGS = tf.app.flags.FLAGS
 
 def main(FLAGS):
     """ 计算图像风格特征 and Make sure the training path exists"""
-    if FLAGS.mode = 'single':
+    if FLAGS.mode == 'single':
         training_path = os.path.join(FLAGS.model_path, 'single-' + FLAGS.naming + '-c.' + str(FLAGS.content_weight) + '-s.' + str(FLAGS.style_weight) + '-r.' + str(FLAGS.reconstruction_weight))
         style_features_t = utils.get_style_features_single(FLAGS)
-    elif FLAGS.mode = 'mixed':
+    elif FLAGS.mode == 'mixed':
         training_path = os.path.join(FLAGS.model_path, 'mixed-' + FLAGS.naming + '-' + FLAGS.naming_1 + '-c.' + str(FLAGS.content_weight) + '-s1.' + str(FLAGS.style_weight) + '-s2.' + str(FLAGS.style_weight_1) + '-r.' + str(FLAGS.reconstruction_weight))
         style_features_t, style_features_t_1 = utils.get_style_features_mixed(FLAGS)
 
@@ -90,9 +90,9 @@ def main(FLAGS):
             _, endpoints_dict = network_fn(tf.concat([processed_generated, processed_images], 0))
             """Build Losses"""
             content_loss = utils.content_loss(endpoints_dict, FLAGS.content_layers)
-            if FLAGS.mode = 'single':
+            if FLAGS.mode == 'single':
                 style_loss, style_loss_summary = utils.style_loss_single(endpoints_dict, FLAGS.style_layers, FLAGS.style_strength, style_features_t, FLAGS.style_weight)
-            elif FLAGS.mode = 'mixed':
+            elif FLAGS.mode == 'mixed':
                 style_loss, style_loss_summary = utils.style_loss_mixed(endpoints_dict, FLAGS.style_layers, FLAGS.style_strength, style_features_t, style_features_t_1, FLAGS.style_weight, FLAGS.style_weight_1)
 
             tv_loss = utils.total_variation_loss(generated)  # use the unprocessed image
