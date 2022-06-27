@@ -244,6 +244,11 @@ def total_variation_loss(layer):
     return loss
 
 
+def reconstruction_loss(processed_images, processed_generated):
+    processed_images_0, _, _, _ = tf.split(processed_images, 4, 0) # (2, 256, 256, 3) = 393216
+    processed_generated_0, _, _, _ = tf.split(processed_generated, 4, 0) # (2, 256, 256, 3) = 393216
+    loss =  tf.norm(tf.abs(processed_images_0 - processed_generated_0), 1) / tf.to_float(tf.size(processed_images_0))
+    return loss
 '''
 init
 '''

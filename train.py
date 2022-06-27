@@ -54,7 +54,7 @@ FLAGS = tf.app.flags.FLAGS
 def main(FLAGS):
     """ 计算图像风格特征 and Make sure the training path exists"""
     if FLAGS.mode == 'single':
-        training_path = os.path.join(FLAGS.model_path, 'single-' + FLAGS.naming + '-c.' + str(FLAGS.content_weight) + '-s.' + str(FLAGS.style_weight) + '-r.' + str(FLAGS.reconstruction_weight))
+        training_path = os.path.join(FLAGS.model_path, 'single-' + FLAGS.naming + '-c.' + str(FLAGS.content_weight) + '-s.' + str(FLAGS.style_weight) + '-r.' + str(FLAGS.reconstruction_weight) + '-tv.' + str(FLAGS.tv_weight))
         style_features_t = utils.get_style_features_single(FLAGS)
     elif FLAGS.mode == 'mixed':
         training_path = os.path.join(FLAGS.model_path, 'mixed-' + FLAGS.naming + '-' + FLAGS.naming_1 + '-c.' + str(FLAGS.content_weight) + '-s1.' + str(FLAGS.style_weight) + '-s2.' + str(FLAGS.style_weight_1) + '-r.' + str(FLAGS.reconstruction_weight))
@@ -89,23 +89,15 @@ def main(FLAGS):
             """ 生成图片+内容图片 输入vgg网络 """
             _, endpoints_dict = network_fn(tf.concat([processed_generated, processed_images], 0))
             """Build Losses"""
+            tv_loss = utils.total_variation_loss(generated)  # use the unprocessed image
             content_loss = utils.content_loss(endpoints_dict, FLAGS.content_layers)
             if FLAGS.mode == 'single':
                 style_loss, style_loss_summary = utils.style_loss_single(endpoints_dict, FLAGS.style_layers, FLAGS.style_strength, style_features_t, FLAGS.style_weight)
+                reconstruction_loss = utils.reconstruction_loss(processed_images, processed_generated)
+                loss = style_loss + FLAGS.content_weight * content_loss + FLAGS.tv_weight * tv_loss + FLAGS.reconstruction_weight * reconstruction_loss
             elif FLAGS.mode == 'mixed':
                 style_loss, style_loss_summary = utils.style_loss_mixed(endpoints_dict, FLAGS.style_layers, FLAGS.style_strength, style_features_t, style_features_t_1, FLAGS.style_weight, FLAGS.style_weight_1)
-
-            tv_loss = utils.total_variation_loss(generated)  # use the unprocessed image
-            
-            # batch size = 8 and strength[0] == 0 and strength[1] == 0 
-            processed_images_0, _, _, _ = tf.split(processed_images, 4, 0) # (2, 256, 256, 3) = 393216
-            processed_generated_0, _, _, _ = tf.split(processed_generated, 4, 0) # (2, 256, 256, 3) = 393216
-            reconstruction_loss =  tf.norm(tf.abs(processed_images_0 - processed_generated_0), 1) / tf.to_float(tf.size(processed_images_0))
-
-            loss = style_loss + \
-                    FLAGS.content_weight * content_loss + \
-                    FLAGS.tv_weight * tv_loss + \
-                    FLAGS.reconstruction_weight * reconstruction_loss
+                loss = style_loss + FLAGS.content_weight * content_loss + FLAGS.tv_weight * tv_loss
 
             # Add Summary for visualization in tensorboard.
             """Add Summary"""

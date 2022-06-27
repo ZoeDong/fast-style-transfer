@@ -9,17 +9,18 @@ import os
 import re
 from datetime import datetime
 import math
+# tf.app.flags.DEFINE_string("model_file", './fast-style-model.ckpt-30000', "")
+# tf.app.flags.DEFINE_string("generated_image_file", './', "")
+tf.app.flags.DEFINE_string("model_file", './zoe-generate/[base]IN-batch_size_type=4/Asheville_huang-c.1-s.250.0-r.100-tv.0.0001/fast-style-model.ckpt-26000', "")
+tf.app.flags.DEFINE_string("generated_image_file", './zoe-generate/[base]IN-batch_size_type=4/Asheville_huang-c.1-s.250.0-r.100-tv.0.0001/', "")
+tf.app.flags.DEFINE_string("image_file", "img/test.jpg", "")
 
 TIMESTAMP="{0:%Y-%m-%d_%H-%M-%S}".format(datetime.now())
 
 tf.app.flags.DEFINE_string('loss_model', 'vgg_16', 'The name of the architecture to evaluate. ')
 tf.app.flags.DEFINE_integer('image_size', 256, 'Image size to train.')
-tf.app.flags.DEFINE_string("model_file", "./fast-style-model.ckpt-17000", "")
-tf.app.flags.DEFINE_string("image_file", "img/test.jpg", "")
-tf.app.flags.DEFINE_string("generated_image_file", "./", "")
 tf.app.flags.DEFINE_string("generated_image_name", "res-" + TIMESTAMP + ".jpg", "")
-tf.app.flags.DEFINE_list('style_strength', [0.0, 0.2, 0.4, 0.6, 0.8, 1.0], '[0.0,1.0]')
-
+tf.app.flags.DEFINE_list('style_strength', [0.0, 0.25, 0.50, 0.75, 1.0], '[0.0,1.0]')
 FLAGS = tf.app.flags.FLAGS
 
 def main(_):
@@ -68,7 +69,7 @@ def main(_):
             if os.path.exists('generated') is False:
                 os.makedirs('generated')
             for i in range(len(FLAGS.style_strength)):
-                generated_file = FLAGS.generated_image_file + '[' + str(FLAGS.style_strength[i]) + ']' + FLAGS.generated_image_name #'generated/res.jpg'
+                generated_file = FLAGS.generated_image_file + '[final][' + str(FLAGS.style_strength[i]) + ']' + FLAGS.generated_image_name #'generated/res.jpg'
                 with open(generated_file, 'wb') as img:
                     img.write(res_tmp[i])                    
                     tf.logging.info('Done. Please check %s.' % generated_file)

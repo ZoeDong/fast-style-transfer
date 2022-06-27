@@ -168,15 +168,15 @@ def net(image, style_strength, training):
             # conv2d return: Tensor("conv3/conv/conv:0", shape=(4, 69, 69, 128), dtype=float32)
             conv3 = relu(batch_norm(conv2d(conv2, 64, 128, 3, 2), 128, training))
         with tf.variable_scope('res1'):
-            res1 = residual(conv3, 128, 3, 1, style_strength)
+            res1 = residual(conv3, 128, 3, 1, style_strength, training)
         with tf.variable_scope('res2'):
-            res2 = residual(res1, 128, 3, 1, style_strength)
+            res2 = residual(res1, 128, 3, 1, style_strength, training)
         with tf.variable_scope('res3'):
-            res3 = residual(res2, 128, 3, 1, style_strength)
+            res3 = residual(res2, 128, 3, 1, style_strength, training)
         with tf.variable_scope('res4'):
-            res4 = residual(res3, 128, 3, 1, style_strength)
+            res4 = residual(res3, 128, 3, 1, style_strength, training)
         with tf.variable_scope('res5'):
-            res5 = residual(res4, 128, 3, 1, style_strength)
+            res5 = residual(res4, 128, 3, 1, style_strength, training)
         # print(res5.get_shape())
         with tf.variable_scope('deconv1'):
             # resize_conv2d return: Tensor("deconv1/conv_transpose/conv/conv:0", shape=(4, 138, 138, 64), dtype=float32)
